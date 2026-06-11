@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Vulnerability {
+  id               String        @id @default(uuid())
+  cveId            String        @unique @map("cve_id")
+  state            String        @default("published")
+  description      Json          // {ko: String, en: String}
+  publishedAt      DateTime?     @map("published_at")
+  modifiedAt       DateTime?     @map("modified_at")
+  sourceIdentifier String?       @map("source_identifier")
+  references       Json          @default("[]")
+  vulnStatus       String        @default("UndergoingAnalysis") @map("vuln_status")
+  isKev            Boolean       @default(false) @map("is_kev")
+  collectedAt      DateTime      @default(now()) @map("collected_at")
+
+  cvssScores       CvssScore[]
+  epssScore        EpssScore?
+  cpeMappings      CpeMapping[]
+  cweWeaknesses    CweWeakness[]
+  kevEntry         KevEntry?
+  aiSummary        AiSummary?
+  exploitEntries   ExploitEntry[]
+
+  @@map("vulnerability")
+}
+
+model CvssScore {
+  id                    String    @id @default(uuid())
+  vulnerabilityId       String    @map("vulnerability_id")
+  version               String
+  vectorString          String    @map("vector_string")
+  baseScore             Decimal   @map("base_score")
+  baseSeverity          String    @map("base_severity")
+  exploitabilityScore   Decimal?  @map("exploitability_score")
+  impactScore           Decimal?  @map("impact_score")
+  attackVector          String?   @map("attack_vector")
+  attackComplexity      String?   @map("attack_complexity")
+  privilegesRequired    String?   @map("privileges_required")
+  userInteraction       String?   @map("user_interaction")
+
+  vulnerability         Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
+
+  @@unique([vulnerabilityId, version])
+  @@map("cvss_score")
+}
+
+model EpssScore {
+  id            String    @id @default(uuid())
+  vulnerabilityId String   @unique @map("vulnerability_id")
+  score         Decimal
+  percentile    Decimal
+  collectedAt   DateTime  @default(now()) @map("collected_at")
+
+  vulnerability Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
+
+  @@map("epss_score")
+}
+
+model CpeMapping {
+  id             String    @id @default(uuid())
+  vulnerabilityId String   @map("vulnerability_id")
+  cpeUri         String    @map("cpe_uri")
+  vendor         String
+  product        String
+  versionStart   String?   @map("version_start")
+  versionEnd     String?   @map("version_end")
+  isVulnerable   Boolean   @default(true) @map("is_vulnerable")
+
+  vulnerability  Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
+
+  @@map("cpe_mapping")
+}
+
+model CweWeakness {
+  id              String    @id @default(uuid())
+  vulnerabilityId String    @map("vulnerability_id")
+  cweId           String    @map("cwe_id")
+  name            String
+  description     String?
+
+  vulnerability   Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
+
+  @@map("cwe_weakness")
+}
+
+model KevEntry {
+  id                 String    @id @default(uuid())
+  vulnerabilityId    String    @unique @map("vulnerability_id")
+  vendorProject      String    @map("vendor_project")
+  product            String
+  vulnerabilityName  String    @map("vulnerability_name")
+  dateAdded          DateTime  @map("date_added")
+  shortDescription   String?   @map("short_description")
+  requiredAction     String?   @map("required_action")
+  dueDate            DateTime? @map("due_date")
+  knownRansomwareUse String?   @default("Unknown") @map("known_ransomware_use")
+  cwes               String[]
+  notes              String?
+
+  vulnerability      Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
+
+  @@map("kev_entry")
+}
+
+model EolData {
+  id            String   @id @default(uuid())
+  product       String
+  cycle         String
+  codename      String?
+  releaseDate   DateTime? @map("release_date")
+  eolDate       DateTime? @map("eol_date")
+  isEol         Boolean   @default(false) @map("is_eol")
+  lts           Boolean   @default(false)
+  supportStatus String    @default("Active") @map("support_status")
+  category      String
+
+  @@map("eol_data")
+}
+
+model CollectionLog {
+  id             String   @id @default(uuid())
+  source         String
+  startedAt      DateTime @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  status         String   @default("running")
+  recordsFetched Int      @default(0) @map("records_fetched")
+  recordsNew     Int      @default(0) @map("records_new")
+  recordsUpdated Int      @default(0) @map("records_updated")
+  error          String?
+
+  @@map("collection_log")
+}
+
+model AppConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("app_config")
+}
+
+model ExploitEntry {
+  id              String    @id @default(uuid())
+  vulnerabilityId String    @map("vulnerability_id")
+  xdbId           String    @map("xdb_id")
+  xdbUrl          String    @map("xdb_url")
+  exploitType     String?   @map("exploit_type")   // remote, local, dos 등
+  dateAdded       DateTime? @map("date_added")
+  cloneSshUrl     String?   @map("clone_ssh_url")
+  source          String    @default("vulncheck-xdb") // 출처
+
+  vulnerability   Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
+
+  @@unique([vulnerabilityId, xdbId])
+  @@map("exploit_entry")
+}
+
+model AiSummary {
+  id            String    @id @default(uuid())
+  vulnerabilityId String  @unique @map("vulnerability_id")
+  summaryKo     String    @map("summary_ko")
+  riskLevel     String    @default("중간") @map("risk_level")
+  riskReason    String?   @map("risk_reason")
+  recommendation String?
+  generatedAt   DateTime  @default(now()) @map("generated_at")
+
+  vulnerability Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
+
+  @@map("ai_summary")
+}

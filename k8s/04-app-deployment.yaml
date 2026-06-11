@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-portal-app
+  namespace: vuln-portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-portal-app
+  template:
+    metadata:
+      labels:
+        app: vuln-portal-app
+    spec:
+      initContainers:
+        - name: migrate
+          image: vuln-portal-app:latest    # ★ 내부 레지스트리 경로로 변경
+          command: ["npx", "prisma", "migrate", "deploy"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vuln-portal-secret
+                  key: DATABASE_URL
+      containers:
+        - name: app
+          image: vuln-portal-app:latest    # ★ 내부 레지스트리 경로로 변경
+          # imagePullPolicy: Never         # 로컬 이미지 사용 시 주석 해제
+          command: ["node", "server.js"]
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vuln-portal-secret
+                  key: DATABASE_URL
+            - name: AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vuln-portal-secret
+                  key: AUTH_SECRET
+            - name: NVD_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vuln-portal-secret
+                  key: NVD_API_KEY
+            - name: VULNCHECK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vuln-portal-secret
+                  key: VULNCHECK_API_KEY
+            - name: OPENAI_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vuln-portal-secret
+                  key: OPENAI_BASE_URL
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vuln-portal-secret
+                  key: OPENAI_API_KEY
+            - name: OPENAI_MODEL
+              valueFrom:
+                secretKeyRef:
+                  name: vuln-portal-secret
+                  key: OPENAI_MODEL
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vuln-portal-app
+  namespace: vuln-portal
+spec:
+  selector:
+    app: vuln-portal-app
+  ports:
+    - port: 80
+      targetPort: 3000
+  type: ClusterIP

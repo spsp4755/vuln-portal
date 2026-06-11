@@ -1,0 +1,257 @@
+﻿'use client';
+
+import { useEffect, useState } from 'react';
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
+import { CalendarX, ArrowUp, ArrowDown, ArrowsDownUp } from '@phosphor-icons/react';
+import { TermTooltip } from '@/components/ui/Tooltip';
+import { format, differenceInDays } from 'date-fns';
+import { ko } from 'date-fns/locale';
+
+interface EolItem {
+  id: string;
+  product: string;
+  cycle: string;
+  codename?: string | null;
+  releaseDate: string | null;
+  eolDate: string | null;
+  isEol: boolean;
+  lts: boolean;
+  supportStatus: string;
+  category: string;
+}
+
+type SortField = 'eolDate' | 'releaseDate' | 'product' | 'cycle';
+
+const CATEGORY_LABELS: Record<string, string> = {
+  os: 'OS', browser: '브라우저', runtime: '런타임',
+  framework: '프레임워크', database: '데이터베이스', infra: '인프라',
+};
+
+export default function EolPage() {
+  const [items, setItems] = useState<EolItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [category, setCategory] = useState('');
+  const [status, setStatus] = useState('due-soon');
+  const [sortBy, setSortBy] = useState<SortField>('eolDate');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    const p = new URLSearchParams();
+    if (category) p.set('category', category);
+    p.set('status', status);
+    p.set('sort', sortBy);
+    p.set('order', sortOrder);
+    fetch(`/api/eol?${p}`)
+      .then(async (r) => {
+        const d = await r.json();
+        setItems(Array.isArray(d) ? d : (d.items || []));
+        setTotal(d.total || 0);
+      })
+      .catch(() => { setItems([]); setTotal(0); })
+      .finally(() => setLoading(false));
+  }, [category, status, sortBy, sortOrder]);
+
+  function handleColumnSort(field: SortField) {
+    if (sortBy === field) {
+      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+  }
+
+  function SortIcon({ field }: { field: SortField }) {
+    if (sortBy !== field) return <ArrowsDownUp size={11} style={{ opacity: 0.4 }} />;
+    return sortOrder === 'asc'
+      ? <ArrowUp size={11} style={{ color: 'var(--cyan)' }} />
+      : <ArrowDown size={11} style={{ color: 'var(--cyan)' }} />;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="animate-in flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 style={{ fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 800, fontSize: '1.6rem', letterSpacing: '-0.03em', color: 'var(--text-primary)' }}>
+            <TermTooltip term="EOL">EOL</TermTooltip> 임박 제품
+          </h1>
+          <p className="mt-1 text-xs" style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)' }}>
+            End of Life · 지원 종료 현황
+            {!loading && (
+              <span className="ml-2" style={{ color: 'var(--cyan)' }}>총 {total}건</span>
+            )}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="text-sm px-3 py-2 rounded-lg"
+            style={{ fontFamily: 'JetBrains Mono, monospace' }}
+          >
+            <option value="">전체 카테고리</option>
+            {Object.entries(CATEGORY_LABELS).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="text-sm px-3 py-2 rounded-lg"
+            style={{ fontFamily: 'JetBrains Mono, monospace' }}
+          >
+            <option value="all">전체</option>
+            <option value="due-soon">90일 내 EOL</option>
+            <option value="active">Active</option>
+            <option value="eol">EOL</option>
+          </select>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortField)}
+            className="text-sm px-3 py-2 rounded-lg"
+            style={{ fontFamily: 'JetBrains Mono, monospace' }}
+          >
+            <option value="eolDate">EOL 날짜순</option>
+            <option value="releaseDate">릴리스일순</option>
+            <option value="product">제품명순</option>
+            <option value="cycle">사이클순</option>
+          </select>
+          <button
+            onClick={() => setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+            className="text-sm px-3 py-2 rounded-lg flex items-center gap-1"
+            style={{ fontFamily: 'JetBrains Mono, monospace', background: 'var(--border-dim)', color: 'var(--text-secondary)' }}
+            title={sortOrder === 'asc' ? '오름차순' : '내림차순'}
+          >
+            {sortOrder === 'asc' ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
+            {sortOrder === 'asc' ? '오름' : '내림'}
+          </button>
+        </div>
+      </div>
+
+      <div className="card animate-in delay-100">
+        {loading ? (
+          <div className="p-6"><LoadingSkeleton rows={10} /></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => handleColumnSort('product')}
+                  >
+                    <span className="flex items-center gap-1">제품 <SortIcon field="product" /></span>
+                  </th>
+                  <th
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => handleColumnSort('cycle')}
+                  >
+                    <span className="flex items-center gap-1">사이클 <SortIcon field="cycle" /></span>
+                  </th>
+                  <th>카테고리</th>
+                  <th
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => handleColumnSort('releaseDate')}
+                  >
+                    <span className="flex items-center gap-1">릴리스일 <SortIcon field="releaseDate" /></span>
+                  </th>
+                  <th
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => handleColumnSort('eolDate')}
+                  >
+                    <span className="flex items-center gap-1">EOL 날짜 <SortIcon field="eolDate" /></span>
+                  </th>
+                  <th>상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => {
+                  const daysLeft = item.eolDate ? differenceInDays(new Date(item.eolDate), new Date()) : null;
+                  const overdue  = daysLeft !== null && daysLeft < 0;
+                  const soon     = daysLeft !== null && daysLeft >= 0 && daysLeft <= 30;
+
+                  return (
+                    <tr key={item.id}>
+                      <td>
+                        <span style={{ fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 700, color: 'var(--text-primary)', fontSize: '14px' }}>
+                          {item.product}
+                        </span>
+                        {item.codename && (
+                          <span className="ml-2 text-xs" style={{ color: 'var(--text-muted)' }}>{item.codename}</span>
+                        )}
+                        {item.lts && (
+                          <span
+                            className="ml-2 text-xs px-1.5 py-0.5 rounded"
+                            style={{ background: 'var(--green-dim)', color: 'var(--green)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}
+                          >
+                            LTS
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '12px', color: 'var(--cyan)' }}>
+                        {item.cycle}
+                      </td>
+                      <td>
+                        <span
+                          className="text-xs px-2 py-0.5 rounded"
+                          style={{ background: 'var(--border-dim)', color: 'var(--text-muted)', fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 600 }}
+                        >
+                          {CATEGORY_LABELS[item.category] || item.category}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="text-xs" style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)' }}>
+                          {item.releaseDate ? format(new Date(item.releaseDate), 'yyyy-MM-dd', { locale: ko }) : '—'}
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          className="flex items-center gap-1.5 text-xs"
+                          style={{
+                            fontFamily: 'JetBrains Mono, monospace',
+                            color: overdue ? 'var(--red)' : soon ? 'var(--orange)' : 'var(--text-secondary)',
+                          }}
+                        >
+                          <CalendarX size={11} />
+                          {item.eolDate ? format(new Date(item.eolDate), 'yyyy-MM-dd', { locale: ko }) : 'N/A'}
+                          {daysLeft !== null && overdue && (
+                            <span className="ml-1" style={{ color: 'var(--red)' }}>{Math.abs(daysLeft)}일 경과</span>
+                          )}
+                          {daysLeft !== null && !overdue && daysLeft <= 90 && (
+                            <span className="ml-1" style={{ color: 'var(--orange)' }}>D-{daysLeft}</span>
+                          )}
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          className="text-xs px-2 py-0.5 rounded"
+                          style={{
+                            fontFamily: 'JetBrains Mono, monospace',
+                            fontWeight: 600,
+                            background: overdue ? 'var(--red-dim)' : soon ? 'var(--orange-dim)' : 'var(--green-dim)',
+                            color: overdue ? 'var(--red)' : soon ? 'var(--orange)' : 'var(--green)',
+                            border: `1px solid ${overdue ? 'rgba(255,59,59,0.2)' : soon ? 'rgba(255,143,0,0.2)' : 'rgba(16,185,129,0.2)'}`,
+                          }}
+                        >
+                          {overdue ? 'EOL' : soon ? '임박' : 'Active'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!items.length && (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center" style={{ color: 'var(--text-muted)' }}>
+                      데이터 없음
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

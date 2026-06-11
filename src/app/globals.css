@@ -1,0 +1,493 @@
+@import "tailwindcss";
+
+/* ── 로컬 번들 폰트 (폐쇄망 / 컨테이너 배포용) ──────────────── */
+/* Pretendard Variable: 한국어+영문 최적화, public/fonts/에 번들 */
+@font-face {
+  font-family: 'Pretendard Variable';
+  src: url('/fonts/PretendardVariable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* JetBrains Mono: 숫자/CVE ID/코드 전용, public/fonts/에 번들 */
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Design Tokens ─────────────────────────────────────── */
+:root {
+  --void:        #060a12;
+  --base:        #0b0f1a;
+  --surface:     #0f1623;
+  --elevated:    #162030;
+  --border-dim:  #1a2d42;
+  --border-base: #243347;
+  --border-hi:   #2e4460;
+
+  --text-primary:   #f0f6fc;
+  --text-secondary: #b0c8de;
+  --text-muted:     #607a94;
+
+  --cyan:        #00d4ff;
+  --cyan-dim:    rgba(0, 212, 255, 0.15);
+  --cyan-glow:   0 0 20px rgba(0, 212, 255, 0.25);
+
+  --red:         #ff3b3b;
+  --red-dim:     rgba(255, 59, 59, 0.12);
+  --red-glow:    0 0 16px rgba(255, 59, 59, 0.3);
+
+  --orange:      #ff8f00;
+  --orange-dim:  rgba(255, 143, 0, 0.12);
+
+  --yellow:      #fbbf24;
+  --yellow-dim:  rgba(251, 191, 36, 0.1);
+
+  --green:       #10b981;
+  --green-dim:   rgba(16, 185, 129, 0.12);
+
+  --radius-sm:  4px;
+  --radius:     8px;
+  --radius-lg:  12px;
+}
+
+/* ── Base Reset ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { font-size: 15px; }
+
+body {
+  background: var(--base);
+  color: var(--text-primary);
+  font-family: var(--ff-body);
+  font-size: 14px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  word-break: keep-all;
+}
+
+/* ── Typography ─────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--ff-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  word-break: keep-all;
+}
+
+code, .font-mono, [class*="mono"] {
+  font-family: var(--ff-mono);
+  font-feature-settings: "liga" 1, "calt" 1;
+}
+
+/* ── Font family aliases ────────────────────────────────── */
+:root {
+  --ff-display: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --ff-body:    'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --ff-mono:    'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+}
+
+/* ── Dot-grid background texture ───────────────────────── */
+.dot-grid {
+  background-image: radial-gradient(circle, var(--border-dim) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ── Card / Surface ─────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--radius-lg);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.card:hover { border-color: var(--border-hi); }
+
+.card-elevated {
+  background: var(--elevated);
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-lg);
+}
+
+/* ── Severity Badges ─────────────────────────────────────── */
+.badge-critical {
+  background: var(--red-dim);
+  color: var(--red);
+  border: 1px solid rgba(255, 59, 59, 0.25);
+  font-family: var(--font-mono), 'JetBrains Mono', monospace;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.badge-high {
+  background: var(--orange-dim);
+  color: var(--orange);
+  border: 1px solid rgba(255, 143, 0, 0.25);
+  font-family: var(--font-mono), 'JetBrains Mono', monospace;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.badge-medium {
+  background: var(--yellow-dim);
+  color: var(--yellow);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  font-family: var(--font-mono), 'JetBrains Mono', monospace;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.badge-low {
+  background: var(--green-dim);
+  color: var(--green);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  font-family: var(--font-mono), 'JetBrains Mono', monospace;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* ── Threat pulse ───────────────────────────────────────── */
+@keyframes threat-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 59, 59, 0.4); }
+  50%       { box-shadow: 0 0 0 8px rgba(255, 59, 59, 0); }
+}
+.threat-pulse { animation: threat-pulse 2.5s ease-in-out infinite; }
+
+/* ── Tooltip portal animation ──────────────────────────── */
+@keyframes tooltip-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ── Fade-in stagger ────────────────────────────────────── */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-in { animation: fade-in-up 0.45s ease-out both; }
+.delay-50   { animation-delay: 0.05s; }
+.delay-100  { animation-delay: 0.1s; }
+.delay-150  { animation-delay: 0.15s; }
+.delay-200  { animation-delay: 0.2s; }
+.delay-250  { animation-delay: 0.25s; }
+.delay-300  { animation-delay: 0.3s; }
+.delay-400  { animation-delay: 0.4s; }
+.delay-500  { animation-delay: 0.5s; }
+
+/* ── Count-up number ────────────────────────────────────── */
+@keyframes count-pop {
+  0%   { opacity: 0; transform: scale(0.8) translateY(6px); }
+  60%  { transform: scale(1.04) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.count-pop { animation: count-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* ── Scrollbar ──────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--base); }
+::-webkit-scrollbar-thumb { background: var(--border-base); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-hi); }
+
+/* ── Table ──────────────────────────────────────────────── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.data-table thead th {
+  padding: 8px 12px;
+  text-align: left;
+  font-family: var(--ff-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-base);
+  background: rgba(6, 10, 18, 0.6);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.data-table thead th:hover {
+  color: var(--text-secondary);
+}
+.data-table tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-dim);
+  font-size: 13px;
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+.data-table tbody tr {
+  transition: background 0.1s;
+}
+/* 짝수 행 약간 다른 배경으로 가독성 향상 */
+.data-table tbody tr:nth-child(even) {
+  background: rgba(15, 22, 35, 0.5);
+}
+.data-table tbody tr:hover {
+  background: rgba(0, 212, 255, 0.05) !important;
+}
+.data-table tbody tr:hover td {
+  border-bottom-color: rgba(0, 212, 255, 0.1);
+}
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Input ──────────────────────────────────────────────── */
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+input[type="search"],
+input[type="email"],
+select,
+textarea {
+  background: var(--elevated) !important;
+  border: 1px solid var(--border-base) !important;
+  color: var(--text-primary) !important;
+  border-radius: var(--radius-sm) !important;
+}
+input::placeholder,
+textarea::placeholder { color: var(--text-muted) !important; }
+input:focus, select:focus, textarea:focus {
+  border-color: var(--cyan) !important;
+  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1) !important;
+  outline: none !important;
+}
+select option {
+  background: var(--elevated);
+  color: var(--text-primary);
+}
+/* date input 캘린더 아이콘 */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.6) sepia(1) hue-rotate(170deg) saturate(2);
+  cursor: pointer;
+}
+
+/* ── Cyan accent link ───────────────────────────────────── */
+.link-cyan {
+  color: var(--cyan);
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.link-cyan:hover { opacity: 0.7; }
+
+/* ── Button primary ─────────────────────────────────────── */
+.btn-primary {
+  background: var(--cyan);
+  color: var(--base);
+  font-family: var(--font-syne), 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  padding: 8px 18px;
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn-primary:hover { opacity: 0.88; }
+.btn-primary:active { transform: scale(0.97); }
+.btn-primary:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* ── Shimmer skeleton ───────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--elevated) 25%, var(--border-dim) 50%, var(--elevated) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Select 가독성 향상 ──────────────────────────────────── */
+select {
+  min-height: 34px !important;
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+  cursor: pointer !important;
+  appearance: auto !important;
+}
+
+/* ── 필터 카드 내부 구분선 ──────────────────────────────── */
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.filter-label {
+  font-family: var(--ff-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+/* ── 카드 헤더 구분 ─────────────────────────────────────── */
+.card-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-dim);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-header-title {
+  font-family: var(--ff-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* ── Badge ──────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--ff-mono);
+}
+.badge-kev {
+  background: var(--red-dim);
+  color: var(--red);
+  border: 1px solid rgba(255, 59, 59, 0.25);
+}
+.badge-new {
+  background: var(--cyan-dim);
+  color: var(--cyan);
+  border: 1px solid rgba(0, 212, 255, 0.25);
+}
+
+/* ── Status indicators ───────────────────────────────────── */
+.status-success { color: var(--green); }
+.status-failed  { color: var(--red); }
+.status-running { color: var(--cyan); }
+.status-cancelled { color: var(--text-muted); }
+
+/* ── Severity row highlight ──────────────────────────────── */
+tr.sev-critical td:first-child { border-left: 3px solid var(--red) !important; padding-left: 9px !important; }
+tr.sev-high td:first-child     { border-left: 3px solid var(--orange) !important; padding-left: 9px !important; }
+tr.sev-critical { background: rgba(255, 59, 59, 0.03) !important; }
+tr.sev-high     { background: rgba(255, 143, 0, 0.02) !important; }
+
+/* ── Radix UI overrides ─────────────────────────────────── */
+[data-radix-popper-content-wrapper] { z-index: 50 !important; }
+
+/* ── 메인 컨텐츠 레이아웃 개선 ──────────────────────────── */
+main { padding: 12px 16px !important; }
+
+/* ── 카드 내부 구분선 강화 ──────────────────────────────── */
+.card + .card { /* 카드 사이 시각 구분 */ }
+
+/* ── 통계 숫자 강조 ─────────────────────────────────────── */
+.stat-number {
+  font-family: var(--ff-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* ── 태그/뱃지 기본 크기 보정 ───────────────────────────── */
+.badge { font-size: 10px; padding: 1px 7px; letter-spacing: 0.03em; }
+
+/* ── 테이블 컬럼 정렬 클릭 힌트 ────────────────────────── */
+.data-table thead th[style*="cursor: pointer"]:hover,
+.data-table thead th[style*="cursor:pointer"]:hover {
+  background: rgba(0, 212, 255, 0.06);
+}
+
+/* ── 페이지네이션 버튼 ──────────────────────────────────── */
+.pagination-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 28px; height: 28px; padding: 0 6px;
+  font-size: 12px; font-family: var(--ff-mono);
+  border-radius: var(--radius-sm);
+  background: var(--elevated); border: 1px solid var(--border-dim);
+  color: var(--text-secondary); cursor: pointer; transition: all 0.1s;
+}
+.pagination-btn:hover { border-color: var(--border-hi); color: var(--text-primary); }
+.pagination-btn.active { background: var(--cyan-dim); border-color: var(--cyan); color: var(--cyan); font-weight: 700; }
+
+/* ── Light Theme ────────────────────────────────────────── */
+[data-theme="light"] {
+  --void:        #f0f4f8;
+  --base:        #f7f9fc;
+  --surface:     #ffffff;
+  --elevated:    #eef2f7;
+  --border-dim:  #d1dce8;
+  --border-base: #b8c8d8;
+  --border-hi:   #96afc4;
+
+  --text-primary:   #0f1f2e;
+  --text-secondary: #2d4a62;
+  --text-muted:     #5a7a94;
+
+  --cyan:        #0080aa;
+  --cyan-dim:    rgba(0, 128, 170, 0.1);
+  --cyan-glow:   0 0 20px rgba(0, 128, 170, 0.2);
+
+  --red:         #cc1f1f;
+  --red-dim:     rgba(204, 31, 31, 0.1);
+  --red-glow:    0 0 16px rgba(204, 31, 31, 0.2);
+
+  --orange:      #b85c00;
+  --orange-dim:  rgba(184, 92, 0, 0.1);
+
+  --yellow:      #946500;
+  --yellow-dim:  rgba(148, 101, 0, 0.08);
+
+  --green:       #0a7a55;
+  --green-dim:   rgba(10, 122, 85, 0.1);
+}
+
+[data-theme="light"] .data-table thead th {
+  background: rgba(240, 244, 248, 0.9);
+}
+[data-theme="light"] .data-table tbody tr:nth-child(even) {
+  background: rgba(238, 242, 247, 0.6);
+}
+[data-theme="light"] .data-table tbody tr:hover {
+  background: rgba(0, 128, 170, 0.06) !important;
+}
+[data-theme="light"] select option {
+  background: var(--elevated);
+  color: var(--text-primary);
+}
+[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none;
+}
+[data-theme="light"] .dot-grid {
+  background-image: radial-gradient(circle, var(--border-base) 1px, transparent 1px);
+}
+.pagination-btn:disabled { opacity: 0.35; cursor: not-allowed; }

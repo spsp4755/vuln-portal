@@ -1,0 +1,31 @@
+# Ingress — nginx ingress controller 또는 내부 ingress controller 필요
+# 사용하지 않는 경우 이 파일은 적용하지 않아도 됩니다
+# NodePort 서비스로 직접 접근하려면 04-app-deployment.yaml의 type을 NodePort로 변경하세요
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vuln-portal-ingress
+  namespace: vuln-portal
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    # TLS 종료 (인증서가 있는 경우)
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx   # ★ 클러스터의 ingress class명으로 변경
+  rules:
+    - host: vuln-portal.internal   # ★ 실제 도메인으로 변경
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vuln-portal-app
+                port:
+                  number: 80
+  # TLS 설정 (인증서가 있는 경우 주석 해제)
+  # tls:
+  #   - hosts:
+  #       - vuln-portal.internal
+  #     secretName: vuln-portal-tls

@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vuln-portal-postgres
+  namespace: vuln-portal
+spec:
+  serviceName: vuln-portal-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-portal-postgres
+  template:
+    metadata:
+      labels:
+        app: vuln-portal-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine        # ★ 내부 레지스트리 사용 시 경로 변경
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "vulnportal"
+            - name: POSTGRES_DB
+              value: "vulnportal"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vuln-portal-secret
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "vulnportal", "-d", "vulnportal"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "vulnportal", "-d", "vulnportal"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vuln-portal-postgres
+  namespace: vuln-portal
+spec:
+  selector:
+    app: vuln-portal-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+  clusterIP: None   # Headless service (StatefulSet)
