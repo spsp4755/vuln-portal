@@ -9,3 +9,5 @@ Dockerfile
 docker-compose*.yml
 k8s/
 podman/
+tsconfig.tsbuildinfo
+*.log

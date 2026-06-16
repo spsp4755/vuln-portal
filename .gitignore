@@ -5,3 +5,7 @@ prisma/migrations/
 *.db
 dist/
 .DS_Store
+*.log
+check*.json
+detail*.json
+images/

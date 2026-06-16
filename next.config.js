@@ -1,10 +1,16 @@
+const path = require('path');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',           // Docker 최적화: 필요한 파일만 포함
+  output: 'standalone',
   experimental: {
-    instrumentationHook: true,    // 자동 수집 스케줄러 활성화
+    instrumentationHook: true,
+    serverComponentsExternalPackages: ['node-cron'],
   },
-  serverExternalPackages: ['node-cron'],
+  webpack: (config) => {
+    config.resolve.alias['@'] = path.resolve(__dirname, 'src');
+    return config;
+  },
 };
 
 module.exports = nextConfig;
