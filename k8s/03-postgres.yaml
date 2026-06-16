@@ -16,7 +16,8 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:16-alpine        # ★ 내부 레지스트리 사용 시 경로 변경
+          image: postgres:16-alpine
+          imagePullPolicy: Never           # 레지스트리 없이 노드 로컬 이미지 사용
           ports:
             - containerPort: 5432
           env:
