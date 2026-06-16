@@ -1,21 +1,29 @@
 #!/bin/bash
 # ============================================================
-# Vuln Portal — Podman Pod 배포 스크립트
-# 사용법: bash podman/pod-run.sh
+# Vuln Portal — Podman Pod 배포 스크립트 (폐쇄망용)
+#
+# 사전 준비:
+#   같은 폴더에 아래 파일이 있어야 합니다
+#   - vuln-portal-app.tar
+#   - postgres-16-alpine.tar
+#
+# 사용법:
+#   bash podman/pod-run.sh
 # ============================================================
 set -e
 
 POD_NAME="vuln-portal"
-APP_IMAGE="vuln-portal-app:latest"
+APP_IMAGE="vuln-portal-app:1.0.0"
 PG_IMAGE="postgres:16-alpine"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# ── 환경변수 설정 (운영 환경에 맞게 수정) ─────────────────────
+# ── 환경변수 설정 ─────────────────────────────────────────────
 DB_USER="vulnportal"
 DB_PASS="Kcb1234!DB"            # ★ 반드시 변경
 DB_NAME="vulnportal"
 APP_PORT="3000"
-AUTH_SECRET="change-this-secret-min-32-characters!!"  # ★ 반드시 변경
+AUTH_SECRET="change-this-secret-min-32-characters!!"  # ★ 반드시 변경 (32자 이상)
 
 # 외부 API 키 (없으면 빈 문자열 — 해당 수집기만 비활성화됨)
 NVD_API_KEY=""
@@ -24,10 +32,37 @@ OPENAI_BASE_URL=""    # 로컬 LLM: http://192.168.x.x:11434/v1
 OPENAI_API_KEY=""
 OPENAI_MODEL=""
 
-# ── 이미지 빌드 ───────────────────────────────────────────────
-echo "▶ [1/5] 이미지 빌드 중..."
-podman build -t "$APP_IMAGE" "$SCRIPT_DIR/.."
-echo "   완료: $APP_IMAGE"
+# ── 이미지 로드 ───────────────────────────────────────────────
+echo "▶ [1/5] 이미지 로드 중..."
+
+APP_TAR="$ROOT_DIR/vuln-portal-app.tar"
+PG_TAR="$ROOT_DIR/postgres-16-alpine.tar"
+
+if ! podman image exists "$APP_IMAGE" 2>/dev/null; then
+  if [ ! -f "$APP_TAR" ]; then
+    echo "❌ 이미지 파일이 없습니다: $APP_TAR"
+    echo "   GitHub Releases에서 vuln-portal-app.tar를 같은 폴더에 받아주세요."
+    exit 1
+  fi
+  echo "   앱 이미지 로드 중... (약 10초)"
+  podman load -i "$APP_TAR"
+else
+  echo "   앱 이미지 이미 존재 — 스킵"
+fi
+
+if ! podman image exists "$PG_IMAGE" 2>/dev/null; then
+  if [ ! -f "$PG_TAR" ]; then
+    echo "❌ 이미지 파일이 없습니다: $PG_TAR"
+    echo "   GitHub Releases에서 postgres-16-alpine.tar를 같은 폴더에 받아주세요."
+    exit 1
+  fi
+  echo "   PostgreSQL 이미지 로드 중... (약 10초)"
+  podman load -i "$PG_TAR"
+else
+  echo "   PostgreSQL 이미지 이미 존재 — 스킵"
+fi
+
+echo "   이미지 로드 완료 ✓"
 
 # ── 기존 pod 정리 ─────────────────────────────────────────────
 echo "▶ [2/5] 기존 pod 정리..."
@@ -36,7 +71,7 @@ podman pod rm -f "$POD_NAME" 2>/dev/null || true
 
 # ── 볼륨 생성 ─────────────────────────────────────────────────
 echo "▶ [3/5] 볼륨 준비..."
-podman volume create vuln-portal-pgdata 2>/dev/null || echo "   (기존 볼륨 재사용)"
+podman volume create vuln-portal-pgdata 2>/dev/null || echo "   기존 볼륨 재사용 (데이터 유지)"
 
 # ── Pod 생성 ──────────────────────────────────────────────────
 echo "▶ [4/5] Pod 생성 (포트 $APP_PORT)..."
@@ -67,6 +102,9 @@ for i in $(seq 1 30); do
     echo "   DB 준비 완료 ✓"
     break
   fi
+  if [ "$i" -eq 30 ]; then
+    echo "   ⚠ DB 응답 없음 — 로그 확인: podman logs ${POD_NAME}-db"
+  fi
   printf "   대기 중... (%d/30)\r" "$i"
   sleep 2
 done
@@ -88,13 +126,15 @@ podman run -d \
   "$APP_IMAGE"
 
 # ── 결과 출력 ─────────────────────────────────────────────────
-echo ""
-echo "┌─────────────────────────────────────────────┐"
-echo "│  ✅  Vuln Portal 배포 완료                  │"
-echo "├─────────────────────────────────────────────┤"
 SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
-echo "│  접속 주소: http://${SERVER_IP}:${APP_PORT}"
-echo "│  로그 보기: podman logs -f ${POD_NAME}-app  │"
-echo "│  상태 확인: podman pod ps                   │"
-echo "│  중지:      bash podman/pod-stop.sh         │"
-echo "└─────────────────────────────────────────────┘"
+echo ""
+echo "┌─────────────────────────────────────────────────┐"
+echo "│  ✅  Vuln Portal 배포 완료                      │"
+echo "├─────────────────────────────────────────────────┤"
+printf "│  접속 주소: http://%-29s│\n" "${SERVER_IP}:${APP_PORT}"
+echo "│  로그인:    admin@koreacb.com / Kcb1234!        │"
+echo "├─────────────────────────────────────────────────┤"
+echo "│  로그 보기: podman logs -f ${POD_NAME}-app       │"
+echo "│  상태 확인: podman pod ps                       │"
+echo "│  중지:      bash podman/pod-stop.sh             │"
+echo "└─────────────────────────────────────────────────┘"
