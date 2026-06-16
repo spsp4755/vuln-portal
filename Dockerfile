@@ -53,8 +53,9 @@ COPY --from=builder /app/public        ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static  ./.next/static
 COPY --from=builder /app/prisma        ./prisma
-COPY --from=prod-deps /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=prod-deps /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=prod-deps /app/node_modules/.prisma  ./node_modules/.prisma
+COPY --from=prod-deps /app/node_modules/@prisma  ./node_modules/@prisma
+COPY --from=prod-deps /app/node_modules/prisma   ./node_modules/prisma
 
 # DB 마이그레이션 + 앱 시작 스크립트
 COPY docker-entrypoint.sh ./
