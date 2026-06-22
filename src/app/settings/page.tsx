@@ -11,6 +11,8 @@ interface Log {
 }
 interface ApiKeyInfo { key: string; isSet: boolean; masked: string; source: string; }
 interface ScheduleItem { key: string; value: string; default: string; description: string; valid: boolean; }
+interface ExtApiKey { id: string; name: string; createdAt: string; lastUsedAt: string | null; }
+interface NewExtApiKey extends ExtApiKey { key: string; }
 
 interface Toast { id: number; type: 'success' | 'error' | 'info'; message: string; }
 
@@ -112,6 +114,12 @@ export default function SettingsPage() {
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [schedulerEnabled, setSchedulerEnabled] = useState(true);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [extKeys, setExtKeys] = useState<ExtApiKey[]>([]);
+  const [extKeysLoading, setExtKeysLoading] = useState(true);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [creatingKey, setCreatingKey] = useState(false);
+  const [newKeyValue, setNewKeyValue] = useState<NewExtApiKey | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
 
   const addToast = useCallback((type: Toast['type'], message: string) => {
@@ -160,7 +168,47 @@ export default function SettingsPage() {
     setScheduleInputs(inputs);
   }).catch(() => {});
 
-  useEffect(() => { fetchKeys(); fetchLogs(); fetchSchedules(); }, []);
+  const fetchExtKeys = () => {
+    setExtKeysLoading(true);
+    fetch('/api/admin/api-keys').then(async (r) => {
+      if (r.ok) { const d = await r.json(); setExtKeys(d.keys || []); }
+      setExtKeysLoading(false);
+    }).catch(() => setExtKeysLoading(false));
+  };
+
+  const createExtKey = async () => {
+    if (!newKeyName.trim()) return;
+    setCreatingKey(true);
+    const res = await fetch('/api/admin/api-keys', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newKeyName.trim() }),
+    });
+    if (res.ok) {
+      const d = await res.json();
+      setNewKeyValue(d.key);
+      setNewKeyName('');
+      fetchExtKeys();
+      addToast('success', 'API 키가 발급되었습니다. 지금 바로 복사하세요 — 다시 표시되지 않습니다.');
+    } else {
+      const d = await res.json().catch(() => ({}));
+      addToast('error', `발급 실패: ${d.error || '알 수 없는 오류'}`);
+    }
+    setCreatingKey(false);
+  };
+
+  const revokeExtKey = async (id: string) => {
+    if (!window.confirm('이 API 키를 삭제할까요? 이 키를 사용하는 모든 연동이 끊어집니다.')) return;
+    setRevokingId(id);
+    const res = await fetch('/api/admin/api-keys', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    if (res.ok) { fetchExtKeys(); addToast('success', 'API 키가 삭제되었습니다.'); }
+    else { const d = await res.json().catch(() => ({})); addToast('error', `삭제 실패: ${d.error}`); }
+    setRevokingId(null);
+  };
+
+  useEffect(() => { fetchKeys(); fetchLogs(); fetchSchedules(); fetchExtKeys(); }, []);
 
   const saveKeys = async () => {
     setSavingKeys(true);
@@ -681,6 +729,115 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* External API Key Management */}
+      <div className="card animate-in delay-250">
+        <SectionHeader
+          icon={<Key size={15} />}
+          label="외부 연동 API 키"
+          sub="외부 취약점 분석 시스템이 이 포털 데이터를 가져갈 때 사용하는 키입니다"
+        />
+        <div className="p-4 space-y-4">
+          {/* Endpoint info */}
+          <div className="p-3 rounded-xl" style={{ background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.2)' }}>
+            <p className="text-xs font-semibold mb-2" style={{ fontFamily: "'Pretendard Variable', Pretendard, sans-serif", color: 'var(--cyan)' }}>사용 방법</p>
+            <div className="space-y-1">
+              {[
+                { method: 'GET', path: '/api/v1/vulnerabilities', desc: 'CVE 취약점 목록' },
+                { method: 'GET', path: '/api/v1/kev', desc: 'CISA KEV 목록' },
+                { method: 'GET', path: '/api/v1/eol', desc: 'EOL 제품 목록' },
+              ].map((ep) => (
+                <div key={ep.path} className="flex items-center gap-2">
+                  <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'rgba(0,212,255,0.15)', color: 'var(--cyan)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, fontSize: '10px' }}>
+                    {ep.method}
+                  </span>
+                  <code className="text-xs" style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-secondary)' }}>{ep.path}</code>
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>— {ep.desc}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs mt-2" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
+              요청 헤더: <code style={{ color: 'var(--cyan)' }}>X-API-Key: vp_...</code>
+            </p>
+          </div>
+
+          {/* New key created — show once */}
+          {newKeyValue && (
+            <div className="p-4 rounded-xl" style={{ background: 'var(--green-dim)', border: '1px solid rgba(16,185,129,0.4)' }}>
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle size={14} weight="fill" style={{ color: 'var(--green)' }} />
+                <p className="text-sm font-semibold" style={{ color: 'var(--green)', fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>
+                  API 키 발급 완료 — 지금 복사하세요
+                </p>
+              </div>
+              <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>이 키 값은 다시 표시되지 않습니다.</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 px-3 py-2 rounded-lg text-xs break-all"
+                  style={{ fontFamily: 'JetBrains Mono, monospace', background: 'var(--elevated)', color: 'var(--green)', border: '1px solid rgba(16,185,129,0.3)' }}>
+                  {newKeyValue.key}
+                </code>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(newKeyValue.key); addToast('success', '클립보드에 복사되었습니다.'); }}
+                  className="px-3 py-2 rounded-lg text-xs shrink-0"
+                  style={{ background: 'var(--green)', color: 'var(--base)', fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 700 }}>
+                  복사
+                </button>
+                <button onClick={() => setNewKeyValue(null)} className="px-3 py-2 rounded-lg text-xs shrink-0"
+                  style={{ background: 'var(--elevated)', border: '1px solid var(--border-dim)', color: 'var(--text-muted)', fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>
+                  닫기
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Create new key */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="키 이름 (예: 취약점분석시스템)"
+              value={newKeyName}
+              onChange={(e) => setNewKeyName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && createExtKey()}
+              className="flex-1 px-3 py-2 text-sm rounded-lg"
+              style={{ fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}
+            />
+            <button onClick={createExtKey} disabled={creatingKey || !newKeyName.trim()} className="btn-primary shrink-0">
+              {creatingKey ? '발급 중...' : '+ 키 발급'}
+            </button>
+          </div>
+
+          {/* Key list */}
+          {extKeysLoading ? (
+            <div className="space-y-2">{[...Array(2)].map((_, i) => <div key={i} className="skeleton h-12 rounded-xl" />)}</div>
+          ) : extKeys.length === 0 ? (
+            <p className="text-xs py-4 text-center" style={{ color: 'var(--text-muted)' }}>발급된 API 키가 없습니다.</p>
+          ) : (
+            <div className="space-y-2">
+              {extKeys.map((k) => (
+                <div key={k.id} className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                  style={{ background: 'var(--elevated)', border: '1px solid var(--border-dim)' }}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate" style={{ fontFamily: "'Pretendard Variable', Pretendard, sans-serif", color: 'var(--text-primary)' }}>
+                      {k.name}
+                    </p>
+                    <p className="text-xs" style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)' }}>
+                      발급: {format(new Date(k.createdAt), 'yyyy-MM-dd HH:mm', { locale: ko })}
+                      {k.lastUsedAt && ` · 마지막 사용: ${format(new Date(k.lastUsedAt), 'yyyy-MM-dd HH:mm', { locale: ko })}`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => revokeExtKey(k.id)}
+                    disabled={revokingId === k.id}
+                    className="text-xs px-3 py-1.5 rounded-lg shrink-0 transition-all"
+                    style={{ color: 'var(--red)', border: '1px solid rgba(255,59,59,0.3)', background: 'transparent', fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 600 }}>
+                    {revokingId === k.id ? '삭제 중...' : '삭제'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
