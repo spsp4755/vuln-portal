@@ -9,7 +9,7 @@
 set -e
 
 POD_NAME="vuln-portal"
-APP_IMAGE="vuln-portal-app:1.0.0"
+APP_IMAGE="vuln-portal-app:v1.1.0"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
