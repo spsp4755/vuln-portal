@@ -56,7 +56,10 @@ export async function GET() {
 
 // POST — 수집 시작 (즉시 logId 반환, 백그라운드 실행)
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  let body: any;
+  try { body = await req.json(); } catch {
+    return NextResponse.json({ error: '요청 형식이 올바르지 않습니다.' }, { status: 400 });
+  }
   const { source, daysBack, cancelSource } = body;
 
   // 중지 요청

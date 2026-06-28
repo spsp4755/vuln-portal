@@ -22,60 +22,78 @@ import { validateApiKey } from '@/lib/api-keys';
  *   sort        eolDate | releaseDate | product | cycle (default: eolDate)
  *   order       asc | desc (default: asc)
  */
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseDate(s: string): Date | null {
+  if (!s || !DATE_RE.test(s)) return null;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 export async function GET(req: NextRequest) {
   const apiKey = req.headers.get('X-API-Key') || req.headers.get('x-api-key');
   if (!apiKey || !(await validateApiKey(apiKey))) {
     return NextResponse.json({ error: 'API 키가 유효하지 않습니다.' }, { status: 401 });
   }
 
-  const { searchParams } = new URL(req.url);
-  const page      = Math.max(1, parseInt(searchParams.get('page')  || '1'));
-  const limit     = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20')));
-  const keyword   = searchParams.get('keyword')   || '';
-  const product   = searchParams.get('product')   || '';
-  const category  = searchParams.get('category')  || '';
-  const eolOnly   = searchParams.get('eolOnly')   === 'true';
-  const ltsOnly   = searchParams.get('ltsOnly')   === 'true';
-  const eolBefore = searchParams.get('eolBefore') || '';
-  const eolAfter  = searchParams.get('eolAfter')  || '';
-  const sortBy    = searchParams.get('sort')  || 'eolDate';
-  const sortOrder = (searchParams.get('order') === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc';
+  try {
+    const { searchParams } = new URL(req.url);
+    const page      = Math.max(1, parseInt(searchParams.get('page')  || '1'));
+    const limit     = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20')));
+    const keyword   = searchParams.get('keyword')   || '';
+    const product   = searchParams.get('product')   || '';
+    const category  = searchParams.get('category')  || '';
+    const eolOnly   = searchParams.get('eolOnly')   === 'true';
+    const ltsOnly   = searchParams.get('ltsOnly')   === 'true';
+    const sortBy    = searchParams.get('sort')  || 'eolDate';
+    const sortOrder = (searchParams.get('order') === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc';
 
-  const SORT_FIELDS = ['eolDate', 'releaseDate', 'product', 'cycle'];
-  const orderBy = { [SORT_FIELDS.includes(sortBy) ? sortBy : 'eolDate']: sortOrder };
+    const eolBefore = parseDate(searchParams.get('eolBefore') || '');
+    const eolAfter  = parseDate(searchParams.get('eolAfter')  || '');
+    if ((searchParams.get('eolBefore') && !eolBefore) || (searchParams.get('eolAfter') && !eolAfter)) {
+      return NextResponse.json({ error: '날짜 형식이 올바르지 않습니다. YYYY-MM-DD 형식을 사용하세요.' }, { status: 400 });
+    }
 
-  const where: any = {};
-  if (keyword) {
-    where.OR = [
-      { product: { contains: keyword, mode: 'insensitive' } },
-      { cycle:   { contains: keyword, mode: 'insensitive' } },
-    ];
+    const SORT_FIELDS = ['eolDate', 'releaseDate', 'product', 'cycle'];
+    const orderBy = { [SORT_FIELDS.includes(sortBy) ? sortBy : 'eolDate']: sortOrder };
+
+    const where: any = {};
+    if (keyword) {
+      where.OR = [
+        { product: { contains: keyword, mode: 'insensitive' } },
+        { cycle:   { contains: keyword, mode: 'insensitive' } },
+      ];
+    }
+    if (product)  where.product  = { contains: product,  mode: 'insensitive' };
+    if (category) where.category = { contains: category, mode: 'insensitive' };
+    if (eolOnly)  where.isEol    = true;
+    if (ltsOnly)  where.lts      = true;
+    if (eolBefore || eolAfter) {
+      where.eolDate = {};
+      if (eolAfter)  where.eolDate.gte = eolAfter;
+      if (eolBefore) where.eolDate.lte = eolBefore;
+    }
+
+    const [total, entries] = await Promise.all([
+      prisma.eolData.count({ where }),
+      prisma.eolData.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy,
+      }),
+    ]);
+
+    return NextResponse.json({
+      data: entries,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (err: any) {
+    console.error('[v1/eol] error:', err);
+    return NextResponse.json({ error: '데이터 조회 중 오류가 발생했습니다.' }, { status: 500 });
   }
-  if (product)  where.product  = { contains: product,  mode: 'insensitive' };
-  if (category) where.category = { contains: category, mode: 'insensitive' };
-  if (eolOnly)  where.isEol    = true;
-  if (ltsOnly)  where.lts      = true;
-  if (eolBefore || eolAfter) {
-    where.eolDate = {};
-    if (eolAfter)  where.eolDate.gte = new Date(eolAfter);
-    if (eolBefore) where.eolDate.lte = new Date(eolBefore);
-  }
-
-  const [total, entries] = await Promise.all([
-    prisma.eolData.count({ where }),
-    prisma.eolData.findMany({
-      where,
-      skip: (page - 1) * limit,
-      take: limit,
-      orderBy,
-    }),
-  ]);
-
-  return NextResponse.json({
-    data: entries,
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit),
-  });
 }
