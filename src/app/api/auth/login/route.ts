@@ -8,7 +8,12 @@ const DEFAULT_PASSWORD_HASH = hashPassword('Kcb1234!');
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password } = await req.json();
+    let body: any;
+    try { body = await req.json(); } catch {
+      return NextResponse.json({ error: '요청 형식이 올바르지 않습니다.' }, { status: 400 });
+    }
+    const email    = typeof body?.email    === 'string' ? body.email.trim()    : '';
+    const password = typeof body?.password === 'string' ? body.password : '';
     if (!email || !password) {
       return NextResponse.json({ error: '이메일과 비밀번호를 입력하세요.' }, { status: 400 });
     }
@@ -44,6 +49,7 @@ export async function POST(req: NextRequest) {
     });
     return res;
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('[login] error:', err);
+    return NextResponse.json({ error: '로그인 처리 중 오류가 발생했습니다.' }, { status: 500 });
   }
 }

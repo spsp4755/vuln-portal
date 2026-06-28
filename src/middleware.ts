@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/v1/'];
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/v1/', '/api/health'];
 const SECRET = process.env.AUTH_SECRET || 'vuln-portal-default-secret-change-in-prod';
 
 async function verifyToken(token: string): Promise<boolean> {
