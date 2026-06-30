@@ -66,6 +66,7 @@ export async function GET(req: Request) {
           cpeMappings:    { take: 3 },
           cweWeaknesses:  { take: 3 },
           epssScore:      true,
+          aiSummary:      true,
         },
       }),
     ]);

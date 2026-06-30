@@ -59,6 +59,7 @@ export async function GET(req: Request) {
         cvssScores: { orderBy: { version: 'desc' } },
         kevEntry: true,
         cweWeaknesses: true,
+        aiSummary: true,
       },
     }),
   ]);

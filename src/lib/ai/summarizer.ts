@@ -2,21 +2,27 @@ import OpenAI from 'openai';
 import { prisma } from '@/lib/prisma';
 import { getConfig } from '@/lib/config';
 
-async function getOpenAIClient() {
+// LLM 호출 타임아웃(ms). 사내 모델이 느려도 무한 대기하지 않도록 한다.
+const LLM_TIMEOUT_MS = 90_000;
+
+/** [AI] 접두사 로그 — podman logs / docker logs 에서 바로 보인다. */
+function aiLog(msg: string) { console.log(`[AI] ${msg}`); }
+function aiErr(msg: string) { console.error(`[AI] ${msg}`); }
+
+async function getLlmContext() {
   const apiKey = await getConfig('OPENAI_API_KEY');
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY가 설정되지 않았습니다. 설정 화면에서 키를 입력하세요.');
-  }
   const baseURL = await getConfig('OPENAI_BASE_URL');
-  return new OpenAI({
+  const model = (await getConfig('OPENAI_MODEL')) || 'gpt-4o-mini';
+  if (!apiKey) {
+    throw new Error('LLM API Key가 설정되지 않았습니다. [설정 > AI 기능 설정]에서 API Key를 입력하세요.');
+  }
+  const openai = new OpenAI({
     apiKey,
     ...(baseURL ? { baseURL } : {}),
+    timeout: LLM_TIMEOUT_MS,
+    maxRetries: 1,
   });
-}
-
-async function getModel(): Promise<string> {
-  const model = await getConfig('OPENAI_MODEL');
-  return model || 'gpt-4o-mini';
+  return { openai, baseURL: baseURL || '(OpenAI 기본)', model };
 }
 
 const RISK_LEVELS = ['심각', '높음', '중간', '낮음'];
@@ -82,8 +88,9 @@ function normalizeRisk(v: any): string {
  * SGLang / vLLM 등 OpenAI 호환 엔드포인트를 그대로 사용한다.
  */
 export async function generateAiSummary(cveId: string) {
-  const openai = await getOpenAIClient();
-  const model = await getModel();
+  const t0 = Date.now();
+  const { openai, baseURL, model } = await getLlmContext();
+  aiLog(`요청 시작 cve=${cveId} model=${model} baseURL=${baseURL}`);
 
   const vuln = await prisma.vulnerability.findUnique({
     where: { cveId },
@@ -96,7 +103,7 @@ export async function generateAiSummary(cveId: string) {
     },
   });
 
-  if (!vuln) return null;
+  if (!vuln) { aiErr(`CVE를 찾을 수 없음: ${cveId}`); return null; }
 
   const descObj = (vuln.description as any) || {};
   const desc = descObj.en || descObj.ko || '';
@@ -127,22 +134,60 @@ EPSS(악용 예측): ${vuln.epssScore ? Number(vuln.epssScore.score).toFixed(4) 
   "remediation": "관리자가 실제로 취할 조치를 구체적인 단계로. 각 단계는 줄바꿈으로 구분(예: 1) 영향 버전 확인 2) 보안 패치 적용 3) 우회책 ...). 패치/업그레이드/설정 변경/탐지 등 실무 조치를 포함"
 }`;
 
-  const response = await openai.chat.completions.create({
-    model,
-    messages: [{ role: 'user', content: prompt }],
-    temperature: 0.2,
-    max_tokens: 1200,
-  });
+  aiLog(`LLM 호출 cve=${cveId} promptChars=${prompt.length}`);
+  let response: any;
+  try {
+    response = await openai.chat.completions.create({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.2,
+      max_tokens: 1500,
+    });
+  } catch (e: any) {
+    // SDK 에러: 상태코드/메시지/본문을 최대한 남긴다
+    const status = e?.status ?? e?.response?.status;
+    const detail = e?.response?.data ? JSON.stringify(e.response.data).slice(0, 500) : (e?.message || String(e));
+    aiErr(`LLM 호출 실패 cve=${cveId} status=${status ?? 'N/A'} detail=${detail}`);
+    if (e?.name === 'APIConnectionTimeoutError' || /timeout/i.test(e?.message || '')) {
+      throw new Error(`LLM 응답 시간 초과(${LLM_TIMEOUT_MS / 1000}s). LLM 서버 부하/모델 크기를 확인하세요. (baseURL=${baseURL})`);
+    }
+    if (status === 404) throw new Error(`LLM 엔드포인트(404). URL 끝에 /v1 이 포함됐는지, 모델명이 맞는지 확인하세요. (baseURL=${baseURL}, model=${model})`);
+    if (status === 401 || status === 403) throw new Error(`LLM 인증 실패(${status}). API Key를 확인하세요.`);
+    throw new Error(`LLM 호출 실패: ${e?.message || e}`);
+  }
 
-  const text = response.choices[0].message.content || '';
+  const choice = response?.choices?.[0];
+  const msg = choice?.message ?? {};
+  // 일반 모델: content / reasoning 모델(SGLang 등): reasoning_content 폴백
+  let text = String(msg.content ?? '').trim();
+  if (!text && (msg as any).reasoning_content) {
+    text = String((msg as any).reasoning_content).trim();
+    aiLog(`content 비어 reasoning_content 사용 cve=${cveId}`);
+  }
+  aiLog(`LLM 응답 cve=${cveId} finish=${choice?.finish_reason ?? 'N/A'} contentChars=${text.length} usage=${JSON.stringify(response?.usage ?? {})}`);
 
-  const parsed = extractJson(text) || parseSections(text);
+  if (!text) {
+    aiErr(`빈 응답 cve=${cveId} finish=${choice?.finish_reason} raw=${JSON.stringify(response).slice(0, 600)}`);
+    throw new Error(`모델이 빈 응답을 반환했습니다 (finish_reason: ${choice?.finish_reason ?? 'unknown'}). 모델명/최대토큰 설정을 확인하세요.`);
+  }
 
-  const translation = String(parsed.translation || '').trim();
-  const summaryKo = String(parsed.summary || '').trim() || translation.slice(0, 200) || text.slice(0, 200);
-  const riskLevel = normalizeRisk(parsed.risk_level);
-  const riskReason = String(parsed.risk_reason || '').trim();
-  const recommendation = String(parsed.remediation || '').trim();
+  const parsed = extractJson(text);
+  aiLog(`파싱 cve=${cveId} json=${parsed ? 'ok' : 'fallback(섹션)'}`);
+  const fields = parsed || parseSections(text);
+
+  const translation = String(fields.translation || '').trim();
+  let summaryKo = String(fields.summary || '').trim();
+  const riskLevel = normalizeRisk(fields.risk_level);
+  const riskReason = String(fields.risk_reason || '').trim();
+  const recommendation = String(fields.remediation || '').trim();
+
+  // 모든 필드가 비면(파싱 완전 실패) 원문을 요약 자리에 넣어 최소한 무엇이라도 보이게 한다
+  if (!translation && !summaryKo && !recommendation) {
+    aiErr(`파싱 결과가 모두 비어 원문을 요약으로 저장 cve=${cveId} textHead=${text.slice(0, 200)}`);
+    summaryKo = text.slice(0, 1500);
+  } else if (!summaryKo) {
+    summaryKo = translation.slice(0, 200);
+  }
 
   // 번역문을 description.ko 에 병합 저장
   if (translation) {
@@ -158,6 +203,7 @@ EPSS(악용 예측): ${vuln.epssScore ? Number(vuln.epssScore.score).toFixed(4) 
     update: { summaryKo, riskLevel, riskReason, recommendation },
   });
 
+  aiLog(`완료 cve=${cveId} ms=${Date.now() - t0} translated=${!!translation} risk=${riskLevel} recoChars=${recommendation.length}`);
   return {
     aiSummary: { summaryKo, riskLevel, riskReason, recommendation },
     descriptionKo: translation || null,

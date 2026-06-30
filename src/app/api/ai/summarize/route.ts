@@ -13,13 +13,15 @@ export async function POST(req: Request) {
   try {
     const result = await generateAiSummary(cveId);
     if (!result) {
-      return NextResponse.json({ error: 'AI 요약 생성 실패' }, { status: 500 });
+      console.error(`[AI] summarize: CVE 미존재 cve=${cveId}`);
+      return NextResponse.json({ error: `CVE를 찾을 수 없습니다: ${cveId}` }, { status: 404 });
     }
     return NextResponse.json(result);
   } catch (err: any) {
-    const msg: string = err.message || '';
-    // API 키 미설정은 클라이언트 오류(설정 문제) → 400
-    if (msg.includes('설정되지 않았') || msg.includes('API_KEY') || msg.includes('not set')) {
+    const msg: string = err?.message || String(err);
+    console.error(`[AI] summarize 실패 cve=${cveId}: ${msg}`);
+    // API 키 미설정은 설정 문제 → 400
+    if (msg.includes('설정되지 않') || msg.includes('API Key') || msg.includes('API_KEY')) {
       return NextResponse.json({ error: msg }, { status: 400 });
     }
     return NextResponse.json({ error: msg }, { status: 500 });

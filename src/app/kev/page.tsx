@@ -1,17 +1,22 @@
 ﻿'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, Fragment } from 'react';
 import Link from 'next/link';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
-import { Clock, Biohazard, ArrowUp, ArrowDown, ArrowsDownUp, CaretLeft, CaretRight } from '@phosphor-icons/react';
+import { Clock, Biohazard, ArrowUp, ArrowDown, ArrowsDownUp, CaretLeft, CaretRight, Translate, Sparkle, CaretDown, ArrowRight } from '@phosphor-icons/react';
 import { TermTooltip } from '@/components/ui/Tooltip';
 import { format, differenceInDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
 
+interface AiSummaryLite {
+  summaryKo: string; riskLevel: string; riskReason?: string | null; recommendation?: string | null;
+}
 interface KevVuln {
   id: string;
   cveId: string;
+  description?: { ko?: string; en?: string };
+  aiSummary?: AiSummaryLite | null;
   kevEntry: {
     vendorProject: string;
     product: string;
@@ -33,6 +38,13 @@ const RS: Record<string, { color: string; bg: string }> = {
   Unknown:   { color: 'var(--text-muted)', bg: 'var(--border-dim)' },
 };
 
+const RISK_BG: Record<string, string> = {
+  '심각': 'rgba(255,59,59,0.15)', '높음': 'rgba(255,143,0,0.15)', '중간': 'rgba(245,197,24,0.15)', '낮음': 'rgba(0,212,255,0.15)',
+};
+const RISK_FG: Record<string, string> = {
+  '심각': 'var(--red)', '높음': 'var(--orange)', '중간': 'var(--yellow)', '낮음': 'var(--cyan)',
+};
+
 function SortIcon({ field, current, order }: { field: SortField; current: SortField; order: 'asc' | 'desc' }) {
   if (field !== current) return <ArrowsDownUp size={11} style={{ opacity: 0.3 }} />;
   return order === 'asc' ? <ArrowUp size={11} /> : <ArrowDown size={11} />;
@@ -50,6 +62,71 @@ export default function KevPage() {
   const [page, setPage] = useState(1);
   const limit = 50;
   const [totalPages, setTotalPages] = useState(1);
+  // AI 번역/조치
+  const [translating, setTranslating] = useState(false);
+  const [transMsg, setTransMsg] = useState('');
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [rowBusy, setRowBusy] = useState<Record<string, boolean>>({});
+  const [rowError, setRowError] = useState<Record<string, string>>({});
+
+  const patchVulns = useCallback((updates: Record<string, { descriptionKo?: string | null; aiSummary?: AiSummaryLite }>) => {
+    setVulns((prev) => prev.map((v) => {
+      const u = updates[v.cveId];
+      if (!u) return v;
+      return {
+        ...v,
+        description: u.descriptionKo ? { ...v.description, ko: u.descriptionKo } : v.description,
+        aiSummary: u.aiSummary ?? v.aiSummary,
+      };
+    }));
+  }, []);
+
+  const translatePage = useCallback(async () => {
+    if (!vulns.length || translating) return;
+    const cveIds = vulns.map((v) => v.cveId);
+    setTranslating(true);
+    setTransMsg(`번역 중... (${cveIds.length}건)`);
+    try {
+      const res = await fetch('/api/ai/translate-batch', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cveIds }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setTransMsg(`실패: ${data.error || '오류'}`); return; }
+      const updates: Record<string, any> = {};
+      for (const [cveId, r] of Object.entries<any>(data.results || {})) {
+        if (r && !r.error) updates[cveId] = { descriptionKo: r.descriptionKo, aiSummary: r.aiSummary };
+      }
+      patchVulns(updates);
+      setTransMsg(`완료 · 번역 ${data.done}건 / 건너뜀 ${data.skipped}건${data.failed ? ` / 실패 ${data.failed}건` : ''}`);
+      setTimeout(() => setTransMsg(''), 5000);
+    } catch (e: any) {
+      setTransMsg(`실패: ${e.message}`);
+    } finally {
+      setTranslating(false);
+    }
+  }, [vulns, translating, patchVulns]);
+
+  const toggleRemediation = useCallback(async (v: KevVuln) => {
+    if (expanded === v.cveId) { setExpanded(null); return; }
+    setExpanded(v.cveId);
+    setRowError((p) => ({ ...p, [v.cveId]: '' }));
+    if (v.aiSummary?.recommendation) return;
+    setRowBusy((p) => ({ ...p, [v.cveId]: true }));
+    try {
+      const res = await fetch('/api/ai/summarize', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cveId: v.cveId }),
+      });
+      const data = await res.json();
+      if (res.ok) patchVulns({ [v.cveId]: { descriptionKo: data.descriptionKo, aiSummary: data.aiSummary } });
+      else setRowError((p) => ({ ...p, [v.cveId]: data.error || 'AI 분석 실패' }));
+    } catch (e: any) {
+      setRowError((p) => ({ ...p, [v.cveId]: e.message }));
+    } finally {
+      setRowBusy((p) => ({ ...p, [v.cveId]: false }));
+    }
+  }, [expanded, patchVulns]);
 
   const fetchData = useCallback((pg: number, opts?: {
     ransomware?: string;
@@ -129,6 +206,25 @@ export default function KevPage() {
             CISA Known Exploited Vulnerabilities ·{' '}
             <span style={{ color: 'var(--red)' }}>{total.toLocaleString()}</span>건
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {transMsg && (
+            <span className="text-xs" style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)' }}>{transMsg}</span>
+          )}
+          <button
+            onClick={translatePage}
+            disabled={translating || !vulns.length}
+            title="현재 페이지의 취약점 설명을 한국어로 번역하고 AI 분석을 생성합니다"
+            className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg transition-all"
+            style={{
+              fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 700,
+              background: 'rgba(124,58,237,0.15)', color: '#a78bfa',
+              border: '1px solid rgba(124,58,237,0.3)', opacity: translating ? 0.6 : 1,
+            }}
+          >
+            <Translate size={14} weight={translating ? 'bold' : 'regular'} />
+            {translating ? '번역 중...' : '이 페이지 번역'}
+          </button>
         </div>
       </div>
 
@@ -240,6 +336,7 @@ export default function KevPage() {
                         시정 기한 <SortIcon field="dueDate" current={sortBy} order={sortOrder} />
                       </span>
                     </th>
+                    <th style={{ whiteSpace: 'nowrap' }}>조치</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -253,8 +350,12 @@ export default function KevPage() {
                     const sev = v.cvssScores[0]?.baseSeverity;
                     const sevClass = sev === 'CRITICAL' ? 'sev-critical' : sev === 'HIGH' ? 'sev-high' : '';
 
+                    const koDesc = v.description?.ko && String(v.description.ko).trim();
+                    const isOpen = expanded === v.cveId;
+                    const ai = v.aiSummary;
                     return (
-                      <tr key={v.id} className={sevClass}>
+                      <Fragment key={v.id}>
+                      <tr className={sevClass}>
                         <td>
                           <Link
                             href={`/cve/${v.cveId}`}
@@ -264,10 +365,19 @@ export default function KevPage() {
                             {v.cveId}
                           </Link>
                         </td>
-                        <td>
+                        <td className="max-w-sm">
                           <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
                             {v.kevEntry.vulnerabilityName || `${v.kevEntry.vendorProject} / ${v.kevEntry.product}`}
                           </span>
+                          {koDesc && (
+                            <>
+                              <span className="line-clamp-2 mt-1" style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{koDesc}</span>
+                              <span className="inline-flex items-center gap-0.5 mt-1 text-xs px-1.5 py-0.5 rounded"
+                                style={{ background: 'rgba(124,58,237,0.12)', color: '#a78bfa', fontFamily: 'JetBrains Mono, monospace', fontSize: '9px' }}>
+                                <Sparkle size={8} weight="fill" /> 한국어
+                              </span>
+                            </>
+                          )}
                         </td>
                         <td>
                           {v.cvssScores[0] ? (
@@ -312,12 +422,72 @@ export default function KevPage() {
                             </span>
                           ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                         </td>
+                        <td className="whitespace-nowrap">
+                          <button
+                            onClick={() => toggleRemediation(v)}
+                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-all"
+                            style={{
+                              fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 700,
+                              background: isOpen ? 'rgba(124,58,237,0.2)' : 'rgba(124,58,237,0.1)',
+                              color: '#a78bfa', border: '1px solid rgba(124,58,237,0.25)',
+                            }}>
+                            <Sparkle size={11} weight="fill" /> 조치
+                            <CaretDown size={10} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+                          </button>
+                        </td>
                       </tr>
+                      {isOpen && (
+                        <tr>
+                          <td colSpan={7} style={{ background: 'var(--elevated)', borderTop: '1px solid rgba(124,58,237,0.2)' }}>
+                            <div className="p-4">
+                              {rowBusy[v.cveId] ? (
+                                <p className="text-xs" style={{ color: '#a78bfa', fontFamily: 'JetBrains Mono, monospace' }}>
+                                  <Sparkle size={11} weight="fill" className="inline mr-1" /> AI가 분석 중입니다...
+                                </p>
+                              ) : rowError[v.cveId] ? (
+                                <p className="text-xs" style={{ color: 'var(--red)' }}>{rowError[v.cveId]}</p>
+                              ) : ai ? (
+                                <div className="space-y-3">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {ai.riskLevel && (
+                                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                                        style={{ background: RISK_BG[ai.riskLevel] || 'var(--border-dim)', color: RISK_FG[ai.riskLevel] || 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
+                                        위험도 {ai.riskLevel}
+                                      </span>
+                                    )}
+                                    {ai.summaryKo && <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{ai.summaryKo}</span>}
+                                  </div>
+                                  {ai.recommendation ? (
+                                    <div className="rounded-lg overflow-hidden" style={{ border: '1px solid rgba(124,58,237,0.25)' }}>
+                                      <div className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold"
+                                        style={{ background: 'rgba(124,58,237,0.12)', color: '#c4b5fd', fontFamily: "'Pretendard Variable', Pretendard, sans-serif" }}>
+                                        <Sparkle size={12} weight="fill" /> 조치 방법
+                                      </div>
+                                      <p className="px-3 py-3 text-xs leading-relaxed whitespace-pre-line" style={{ color: 'var(--text-secondary)' }}>
+                                        {ai.recommendation}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>조치 방법이 생성되지 않았습니다.</p>
+                                  )}
+                                  <Link href={`/cve/${v.cveId}`} className="inline-flex items-center gap-1 text-xs link-cyan"
+                                    style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                                    상세 보기 <ArrowRight size={11} />
+                                  </Link>
+                                </div>
+                              ) : (
+                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>분석 데이터가 없습니다.</p>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     );
                   })}
                   {!vulns.length && (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center" style={{ color: 'var(--text-muted)' }}>
+                      <td colSpan={7} className="py-12 text-center" style={{ color: 'var(--text-muted)' }}>
                         데이터 없음
                       </td>
                     </tr>
