@@ -91,12 +91,20 @@ const SEVERITY_COLOR: Record<string, string> = {
   CRITICAL: '#ff3b3b', HIGH: '#ff8f00', MEDIUM: '#f5c518', LOW: '#00d4ff',
 };
 
+const RISK_BG: Record<string, string> = {
+  '심각': 'rgba(255,59,59,0.15)', '높음': 'rgba(255,143,0,0.15)', '중간': 'rgba(245,197,24,0.15)', '낮음': 'rgba(0,212,255,0.15)',
+};
+const RISK_FG: Record<string, string> = {
+  '심각': '#ff3b3b', '높음': '#ff8f00', '중간': '#f5c518', '낮음': '#00d4ff',
+};
+
 export default function CveDetailPage() {
   const { cveId } = useParams();
   const [vuln, setVuln] = useState<VulnDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [summarizing, setSummarizing] = useState(false);
   const [aiError, setAiError] = useState('');
+  const [showOriginal, setShowOriginal] = useState(false);
   const [similar, setSimilar] = useState<SimilarCve[]>([]);
 
   useEffect(() => {
@@ -118,9 +126,19 @@ export default function CveDetailPage() {
     });
     const data = await res.json();
     if (res.ok) {
-      setVuln((v) => v ? { ...v, aiSummary: data } : v);
+      // 응답: { aiSummary: {...}, descriptionKo: string|null }
+      const aiSummary = data.aiSummary ?? data;
+      const descriptionKo = data.descriptionKo;
+      setVuln((v) => {
+        if (!v) return v;
+        const nextDesc = descriptionKo
+          ? { ...(v.description as any), ko: descriptionKo }
+          : v.description;
+        return { ...v, aiSummary, description: nextDesc };
+      });
+      if (descriptionKo) setShowOriginal(false);
     } else {
-      setAiError(data.error || 'AI 요약 실패');
+      setAiError(data.error || 'AI 분석 실패');
     }
     setSummarizing(false);
   };
@@ -192,41 +210,56 @@ export default function CveDetailPage() {
           <p style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: '13px', color: 'var(--text-primary)' }}>
             AI 요약
           </p>
-          {!vuln.aiSummary && (
-            <button
-              onClick={requestSummary}
-              disabled={summarizing}
-              className="ml-auto flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-opacity"
-              style={{ background: 'rgba(124,58,237,0.15)', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.25)', fontFamily: 'Syne, sans-serif', fontWeight: 700, opacity: summarizing ? 0.5 : 1 }}
-            >
-              <Sparkle size={12} weight="fill" />
-              {summarizing ? '분석 중...' : 'AI 요약 생성'}
-            </button>
-          )}
+          <button
+            onClick={requestSummary}
+            disabled={summarizing}
+            className="ml-auto flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-opacity"
+            style={{ background: 'rgba(124,58,237,0.15)', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.25)', fontFamily: 'Syne, sans-serif', fontWeight: 700, opacity: summarizing ? 0.5 : 1 }}
+          >
+            <Sparkle size={12} weight="fill" />
+            {summarizing ? '분석 중...' : vuln.aiSummary ? 'AI 재분석' : 'AI 분석 생성'}
+          </button>
         </div>
         <div className="p-5">
           {vuln.aiSummary ? (
-            <div className="space-y-3">
-              <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                {vuln.aiSummary.summaryKo}
-              </p>
+            <div className="space-y-4">
+              {/* 요약 + 위험도 */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    style={{ background: RISK_BG[vuln.aiSummary.riskLevel] || 'var(--border-dim)', color: RISK_FG[vuln.aiSummary.riskLevel] || 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
+                    위험도 {vuln.aiSummary.riskLevel}
+                  </span>
+                  {vuln.aiSummary.riskReason && (
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{vuln.aiSummary.riskReason}</span>
+                  )}
+                </div>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  {vuln.aiSummary.summaryKo}
+                </p>
+              </div>
+              {/* 조치 방법 */}
               {vuln.aiSummary.recommendation && (
-                <div
-                  className="flex items-start gap-2 p-3 rounded-lg text-xs"
-                  style={{ background: 'rgba(124,58,237,0.08)', color: '#c4b5fd', borderLeft: '2px solid #7c3aed' }}
-                >
-                  <Sparkle size={13} weight="fill" className="mt-0.5 shrink-0" />
-                  {vuln.aiSummary.recommendation}
+                <div className="rounded-lg overflow-hidden" style={{ border: '1px solid rgba(124,58,237,0.25)' }}>
+                  <div className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold"
+                    style={{ background: 'rgba(124,58,237,0.12)', color: '#c4b5fd', fontFamily: 'Syne, sans-serif' }}>
+                    <Sparkle size={12} weight="fill" /> 조치 방법
+                  </div>
+                  <p className="px-3 py-3 text-xs leading-relaxed whitespace-pre-line"
+                    style={{ color: 'var(--text-secondary)' }}>
+                    {vuln.aiSummary.recommendation}
+                  </p>
                 </div>
               )}
             </div>
           ) : (
             <div>
               {aiError ? (
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{aiError}</p>
+                <p className="text-xs" style={{ color: 'var(--red)' }}>{aiError}</p>
               ) : (
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  AI 요약이 없습니다. OpenAI API 키를 설정하면 자동 분석이 가능합니다.
+                  아직 AI 분석이 없습니다. <strong>[AI 분석 생성]</strong>을 누르면 영문 설명을 한국어로 번역하고
+                  위험도·조치 방법을 생성합니다. (설정 &gt; LLM URL·API Key·모델명 필요)
                 </p>
               )}
             </div>
@@ -235,11 +268,56 @@ export default function CveDetailPage() {
       </div>
 
       {/* Description */}
-      <Section title="취약점 설명" accent="var(--cyan)">
-        <p className="leading-relaxed" style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-          {(vuln.description as any).en || (vuln.description as any).ko || 'N/A'}
-        </p>
-      </Section>
+      <div className="card overflow-hidden">
+        <div className="flex items-center gap-2.5 px-5 py-4"
+          style={{ borderBottom: '1px solid var(--border-dim)', borderTop: '2px solid var(--cyan)' }}>
+          <p style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: '13px', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+            취약점 설명
+          </p>
+          {(() => {
+            const d = vuln.description as any;
+            const hasKo = !!(d?.ko && String(d.ko).trim());
+            const hasEn = !!(d?.en && String(d.en).trim());
+            if (!hasKo || !hasEn) return null;
+            return (
+              <div className="ml-auto flex items-center gap-1 p-0.5 rounded-lg text-xs"
+                style={{ background: 'var(--elevated)', border: '1px solid var(--border-dim)' }}>
+                {[['ko', '한국어'], ['en', '원문(EN)']].map(([key, label]) => {
+                  const active = key === 'en' ? showOriginal : !showOriginal;
+                  return (
+                    <button key={key} onClick={() => setShowOriginal(key === 'en')}
+                      className="px-2.5 py-1 rounded-md transition-all"
+                      style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700,
+                        background: active ? 'var(--cyan)' : 'transparent',
+                        color: active ? 'var(--base)' : 'var(--text-muted)' }}>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+        <div className="p-5">
+          {(() => {
+            const d = vuln.description as any;
+            const hasKo = !!(d?.ko && String(d.ko).trim());
+            const body = (showOriginal || !hasKo) ? (d?.en || d?.ko) : d.ko;
+            return (
+              <>
+                <p className="leading-relaxed whitespace-pre-line" style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+                  {body || 'N/A'}
+                </p>
+                {!hasKo && (d?.en) && (
+                  <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    ※ AI 분석을 생성하면 한국어 번역이 여기에 표시됩니다.
+                  </p>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* CVSS */}

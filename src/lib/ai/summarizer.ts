@@ -19,7 +19,68 @@ async function getModel(): Promise<string> {
   return model || 'gpt-4o-mini';
 }
 
-// Generate Korean summary for a CVE
+const RISK_LEVELS = ['심각', '높음', '중간', '낮음'];
+
+/**
+ * LLM 응답에서 JSON 객체를 안전하게 추출한다.
+ * 1순위: 응답 전체 JSON.parse
+ * 2순위: 첫 '{' ~ 마지막 '}' 구간 파싱 (앞뒤 설명문 제거)
+ * 실패 시 null
+ */
+function extractJson(text: string): Record<string, any> | null {
+  const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return null; } };
+  let obj = tryParse(text.trim());
+  if (obj && typeof obj === 'object') return obj;
+
+  // 코드펜스 제거
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced) {
+    obj = tryParse(fenced[1].trim());
+    if (obj && typeof obj === 'object') return obj;
+  }
+
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start !== -1 && end > start) {
+    obj = tryParse(text.slice(start, end + 1));
+    if (obj && typeof obj === 'object') return obj;
+  }
+  return null;
+}
+
+/** JSON 파싱 실패 시: 섹션 라벨 기반 폴백 파서 */
+function parseSections(text: string) {
+  const grab = (label: string) => {
+    const re = new RegExp(`${label}[)\\]:：]*\\s*([\\s\\S]*?)(?=\\n\\s*(?:번역|요약|위험도|위험\\s*사유|이유|조치|권장)[)\\]:：]|$)`, 'i');
+    return text.match(re)?.[1]?.trim() || '';
+  };
+  return {
+    translation: grab('번역'),
+    summary: grab('요약'),
+    risk_level: (text.match(/위험도[)\]:：]*\s*(심각|높음|중간|낮음)/)?.[1]) || '중간',
+    risk_reason: grab('위험\\s*사유') || grab('이유'),
+    remediation: grab('조치') || grab('권장'),
+  };
+}
+
+function normalizeRisk(v: any): string {
+  const s = String(v || '').trim();
+  if (RISK_LEVELS.includes(s)) return s;
+  // 영문/유사 표현 매핑
+  const lower = s.toLowerCase();
+  if (/crit|심각/.test(lower)) return '심각';
+  if (/high|높/.test(lower)) return '높음';
+  if (/low|낮/.test(lower)) return '낮음';
+  if (/med|중/.test(lower)) return '중간';
+  return '중간';
+}
+
+/**
+ * CVE 한 건에 대해 LLM으로 한국어 번역 · 요약 · 위험도 · 조치 방법을 생성한다.
+ * - 번역문은 Vulnerability.description.ko 에 저장 (스키마 변경 없음)
+ * - 요약/위험도/사유/조치는 AiSummary 에 저장 (recommendation = 조치 방법)
+ * SGLang / vLLM 등 OpenAI 호환 엔드포인트를 그대로 사용한다.
+ */
 export async function generateAiSummary(cveId: string) {
   const openai = await getOpenAIClient();
   const model = await getModel();
@@ -31,62 +92,76 @@ export async function generateAiSummary(cveId: string) {
       cweWeaknesses: true,
       kevEntry: true,
       epssScore: true,
+      cpeMappings: { take: 8 },
     },
   });
 
   if (!vuln) return null;
 
-  const desc = (vuln.description as any).en || (vuln.description as any).ko || '';
+  const descObj = (vuln.description as any) || {};
+  const desc = descObj.en || descObj.ko || '';
   const cvss = vuln.cvssScores[0];
+  const products = vuln.cpeMappings
+    .map((c) => `${c.vendor} ${c.product}`)
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .slice(0, 8)
+    .join(', ');
 
-  const prompt = `다음 CVE 취약점에 대해 한국어로 간결하게 요약해주세요.
+  const prompt = `당신은 한국어 사이버 보안 분석가입니다. 아래 CVE 취약점 정보를 바탕으로 결과를 **JSON 객체 하나로만** 출력하세요. JSON 외의 설명이나 코드펜스는 출력하지 마세요.
+
+[취약점 정보]
 CVE ID: ${cveId}
-설명: ${desc.slice(0, 2000)}
-CVSS: ${cvss?.baseScore || 'N/A'} (${cvss?.baseSeverity || 'N/A'})
-CWE: ${vuln.cweWeaknesses.map((w) => w.cweId).join(', ') || 'N/A'}
-KEV: ${vuln.kevEntry ? 'Yes' : 'No'}
+영문 설명: ${desc.slice(0, 2500)}
+CVSS: ${cvss?.baseScore ?? 'N/A'} (${cvss?.baseSeverity ?? 'N/A'})${cvss?.vectorString ? ` / ${cvss.vectorString}` : ''}
+CWE: ${vuln.cweWeaknesses.map((w) => `${w.cweId} ${w.name}`).join(', ') || 'N/A'}
+영향 제품: ${products || 'N/A'}
+CISA KEV(실제 악용): ${vuln.kevEntry ? '예' : '아니오'}
+EPSS(악용 예측): ${vuln.epssScore ? Number(vuln.epssScore.score).toFixed(4) : 'N/A'}
 
-출력 형식:
-- 요약: (1-2문장)
-- 위험도: (심각/높음/중간/낮음)
-- 이유: (1문장)
-- 권장사항: (1문장)
-`;
+[출력 JSON 스키마]
+{
+  "translation": "영문 설명을 자연스러운 한국어로 정확히 번역한 전체 문장",
+  "summary": "이 취약점이 무엇인지 1~2문장으로 핵심 요약",
+  "risk_level": "심각 | 높음 | 중간 | 낮음 중 하나",
+  "risk_reason": "해당 위험도로 판단한 이유 1~2문장",
+  "remediation": "관리자가 실제로 취할 조치를 구체적인 단계로. 각 단계는 줄바꿈으로 구분(예: 1) 영향 버전 확인 2) 보안 패치 적용 3) 우회책 ...). 패치/업그레이드/설정 변경/탐지 등 실무 조치를 포함"
+}`;
 
   const response = await openai.chat.completions.create({
     model,
     messages: [{ role: 'user', content: prompt }],
-    temperature: 0.3,
-    max_tokens: 500,
+    temperature: 0.2,
+    max_tokens: 1200,
   });
 
   const text = response.choices[0].message.content || '';
 
-  const summaryKo = text;
-  const riskMatch = text.match(/위험도[::]\s*(심각|높음|중간|낮음)/);
-  const reasonMatch = text.match(/이유[::]\s*(.+?)(?:\n|$)/);
-  const recMatch = text.match(/권장사항[::]\s*(.+?)(?:\n|$)/);
+  const parsed = extractJson(text) || parseSections(text);
 
-  const riskLevel = riskMatch?.[1] || '중간';
+  const translation = String(parsed.translation || '').trim();
+  const summaryKo = String(parsed.summary || '').trim() || translation.slice(0, 200) || text.slice(0, 200);
+  const riskLevel = normalizeRisk(parsed.risk_level);
+  const riskReason = String(parsed.risk_reason || '').trim();
+  const recommendation = String(parsed.remediation || '').trim();
+
+  // 번역문을 description.ko 에 병합 저장
+  if (translation) {
+    await prisma.vulnerability.update({
+      where: { id: vuln.id },
+      data: { description: { ...descObj, ko: translation } },
+    });
+  }
 
   await prisma.aiSummary.upsert({
     where: { vulnerabilityId: vuln.id },
-    create: {
-      vulnerabilityId: vuln.id,
-      summaryKo,
-      riskLevel,
-      riskReason: reasonMatch?.[1] || '',
-      recommendation: recMatch?.[1] || '',
-    },
-    update: {
-      summaryKo,
-      riskLevel,
-      riskReason: reasonMatch?.[1] || '',
-      recommendation: recMatch?.[1] || '',
-    },
+    create: { vulnerabilityId: vuln.id, summaryKo, riskLevel, riskReason, recommendation },
+    update: { summaryKo, riskLevel, riskReason, recommendation },
   });
 
-  return { summaryKo, riskLevel };
+  return {
+    aiSummary: { summaryKo, riskLevel, riskReason, recommendation },
+    descriptionKo: translation || null,
+  };
 }
 
 // Calculate priority score for a CVE
