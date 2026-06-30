@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Gear, Clock, Key, CheckCircle, XCircle, Play, Robot, Timer, ToggleLeft, ToggleRight, Warning, WifiHigh, WifiX } from '@phosphor-icons/react';
+import { Gear, Clock, Key, CheckCircle, XCircle, Play, Robot, Timer, ToggleLeft, ToggleRight, Warning, WifiHigh, WifiX, Sparkle, ArrowCounterClockwise, Flask } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 
@@ -114,6 +114,13 @@ export default function SettingsPage() {
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [schedulerEnabled, setSchedulerEnabled] = useState(true);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  // AI 프롬프트/파라미터
+  const [aiCfg, setAiCfg] = useState<Record<string, string>>({ AI_PROMPT_TRANSLATE: '', AI_PROMPT_ANALYZE: '', AI_TEMPERATURE: '0.2', AI_MAX_TOKENS: '1500' });
+  const [aiDefaults, setAiDefaults] = useState<Record<string, string>>({});
+  const [savingAi, setSavingAi] = useState(false);
+  const [testCve, setTestCve] = useState('');
+  const [aiTesting, setAiTesting] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState<any>(null);
   const [extKeys, setExtKeys] = useState<ExtApiKey[]>([]);
   const [extKeysLoading, setExtKeysLoading] = useState(true);
   const [newKeyName, setNewKeyName] = useState('');
@@ -208,7 +215,52 @@ export default function SettingsPage() {
     setRevokingId(null);
   };
 
-  useEffect(() => { fetchKeys(); fetchLogs(); fetchSchedules(); fetchExtKeys(); }, []);
+  const fetchAiConfig = () => fetch('/api/admin/ai-config').then(async (r) => {
+    if (!r.ok) return;
+    const d = await r.json();
+    setAiCfg(d.config || {});
+    setAiDefaults(d.defaults || {});
+  }).catch(() => {});
+
+  const saveAiConfig = async () => {
+    setSavingAi(true);
+    const res = await fetch('/api/admin/ai-config', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(aiCfg),
+    });
+    if (res.ok) { addToast('success', 'AI 프롬프트/설정이 저장되었습니다.'); fetchAiConfig(); }
+    else { const d = await res.json().catch(() => ({})); addToast('error', `저장 실패: ${d.error || '오류'}`); }
+    setSavingAi(false);
+  };
+
+  const restoreAiDefault = (key: string) => {
+    setAiCfg((p) => ({ ...p, [key]: aiDefaults[key] ?? '' }));
+    addToast('info', '기본값으로 되돌렸습니다. (저장해야 적용됩니다)');
+  };
+
+  const runAiTest = async () => {
+    setAiTesting(true);
+    setAiTestResult(null);
+    try {
+      const res = await fetch('/api/admin/ai-test', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cveId: testCve.trim() || undefined,
+          promptTranslate: aiCfg.AI_PROMPT_TRANSLATE,
+          promptAnalyze: aiCfg.AI_PROMPT_ANALYZE,
+          temperature: aiCfg.AI_TEMPERATURE,
+          maxTokens: aiCfg.AI_MAX_TOKENS,
+        }),
+      });
+      const d = await res.json();
+      if (res.ok) setAiTestResult(d);
+      else setAiTestResult({ error: d.error || 'AI 테스트 실패', cveId: d.cveId });
+    } catch (e: any) {
+      setAiTestResult({ error: e.message });
+    }
+    setAiTesting(false);
+  };
+
+  useEffect(() => { fetchKeys(); fetchLogs(); fetchSchedules(); fetchExtKeys(); fetchAiConfig(); }, []);
 
   const saveKeys = async () => {
     setSavingKeys(true);
@@ -475,6 +527,101 @@ export default function SettingsPage() {
               </span>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* AI 프롬프트 및 동작 */}
+      <div className="card animate-in delay-150">
+        <SectionHeader icon={<Sparkle size={15} weight="fill" />} label="AI 프롬프트 및 동작" sub="번역/분석 프롬프트와 모델 파라미터를 직접 편집하고 테스트합니다" />
+        <div className="p-4 space-y-4">
+          {/* 모델 파라미터 */}
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--text-secondary)' }}>Temperature</label>
+              <input type="number" min={0} max={1} step={0.1} value={aiCfg.AI_TEMPERATURE || ''}
+                onChange={(e) => setAiCfg((p) => ({ ...p, AI_TEMPERATURE: e.target.value }))}
+                className="w-24 px-2 py-1.5 text-sm rounded-lg" style={{ fontFamily: 'JetBrains Mono, monospace' }} />
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>0=일관적, 1=창의적 (권장 0.2)</p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--text-secondary)' }}>최대 토큰 (max_tokens)</label>
+              <input type="number" min={256} max={8000} step={100} value={aiCfg.AI_MAX_TOKENS || ''}
+                onChange={(e) => setAiCfg((p) => ({ ...p, AI_MAX_TOKENS: e.target.value }))}
+                className="w-28 px-2 py-1.5 text-sm rounded-lg" style={{ fontFamily: 'JetBrains Mono, monospace' }} />
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>응답이 잘리면 늘리세요 (권장 1500)</p>
+            </div>
+          </div>
+
+          {/* 치환 변수 안내 */}
+          <div className="p-3 rounded-xl text-xs" style={{ background: 'var(--elevated)', border: '1px solid var(--border-dim)', color: 'var(--text-muted)' }}>
+            프롬프트에 아래 변수를 쓰면 실제 값으로 치환됩니다:{' '}
+            {['{cveId}', '{description}', '{cvss}', '{cwe}', '{products}', '{kev}', '{epss}'].map((v) => (
+              <code key={v} style={{ margin: '0 3px', color: 'var(--cyan)' }}>{v}</code>
+            ))}
+          </div>
+
+          {/* 번역 프롬프트 */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>번역 프롬프트 (영문 → 한국어)</label>
+              <button onClick={() => restoreAiDefault('AI_PROMPT_TRANSLATE')} className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                <ArrowCounterClockwise size={11} /> 기본값 복원
+              </button>
+            </div>
+            <textarea rows={6} value={aiCfg.AI_PROMPT_TRANSLATE || ''}
+              onChange={(e) => setAiCfg((p) => ({ ...p, AI_PROMPT_TRANSLATE: e.target.value }))}
+              className="w-full px-3 py-2 text-xs rounded-lg" style={{ fontFamily: 'JetBrains Mono, monospace', lineHeight: 1.6, resize: 'vertical' }} />
+          </div>
+
+          {/* 분석 프롬프트 */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>분석 프롬프트 (요약·위험도·조치)</label>
+              <button onClick={() => restoreAiDefault('AI_PROMPT_ANALYZE')} className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                <ArrowCounterClockwise size={11} /> 기본값 복원
+              </button>
+            </div>
+            <textarea rows={10} value={aiCfg.AI_PROMPT_ANALYZE || ''}
+              onChange={(e) => setAiCfg((p) => ({ ...p, AI_PROMPT_ANALYZE: e.target.value }))}
+              className="w-full px-3 py-2 text-xs rounded-lg" style={{ fontFamily: 'JetBrains Mono, monospace', lineHeight: 1.6, resize: 'vertical' }} />
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              분석 응답은 <code style={{ color: 'var(--cyan)' }}>요약:</code> <code style={{ color: 'var(--cyan)' }}>위험도:</code> <code style={{ color: 'var(--cyan)' }}>사유:</code> <code style={{ color: 'var(--cyan)' }}>조치:</code> 라벨 형식으로 받습니다. 라벨은 유지하세요.
+            </p>
+          </div>
+
+          {/* 저장 + 테스트 */}
+          <div className="flex flex-wrap items-center gap-3 pt-2" style={{ borderTop: '1px solid var(--border-dim)' }}>
+            <button onClick={saveAiConfig} disabled={savingAi} className="btn-primary">
+              {savingAi ? '저장 중...' : 'AI 설정 저장'}
+            </button>
+            <div className="flex items-center gap-2 ml-auto">
+              <input type="text" value={testCve} onChange={(e) => setTestCve(e.target.value)}
+                placeholder="테스트 CVE (비우면 자동 선택)"
+                className="w-52 px-3 py-2 text-xs rounded-lg" style={{ fontFamily: 'JetBrains Mono, monospace' }} />
+              <button onClick={runAiTest} disabled={aiTesting}
+                className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg"
+                style={{ fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 700, background: 'rgba(124,58,237,0.15)', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.3)' }}>
+                <Flask size={13} /> {aiTesting ? '테스트 중...' : '응답 테스트'}
+              </button>
+            </div>
+          </div>
+
+          {/* 테스트 결과 미리보기 */}
+          {aiTestResult && (
+            <div className="p-3 rounded-xl text-xs space-y-2" style={{ background: 'var(--elevated)', border: '1px solid var(--border-dim)' }}>
+              {aiTestResult.error ? (
+                <p style={{ color: 'var(--red)' }}>❌ {aiTestResult.cveId ? `[${aiTestResult.cveId}] ` : ''}{aiTestResult.error}</p>
+              ) : (
+                <>
+                  <p style={{ color: 'var(--text-muted)' }}>테스트 대상: <code style={{ color: 'var(--cyan)' }}>{aiTestResult.cveId}</code></p>
+                  <div><span style={{ color: '#a78bfa', fontWeight: 700 }}>번역</span><p className="whitespace-pre-line mt-0.5" style={{ color: 'var(--text-secondary)' }}>{aiTestResult.translation || '(없음)'}</p></div>
+                  <div><span style={{ color: '#a78bfa', fontWeight: 700 }}>위험도</span> <span style={{ color: 'var(--text-secondary)' }}>{aiTestResult.riskLevel} — {aiTestResult.riskReason}</span></div>
+                  <div><span style={{ color: '#a78bfa', fontWeight: 700 }}>요약</span><p className="mt-0.5" style={{ color: 'var(--text-secondary)' }}>{aiTestResult.summaryKo}</p></div>
+                  <div><span style={{ color: '#a78bfa', fontWeight: 700 }}>조치 방법</span><p className="whitespace-pre-line mt-0.5" style={{ color: 'var(--text-secondary)' }}>{aiTestResult.recommendation || '(없음)'}</p></div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
