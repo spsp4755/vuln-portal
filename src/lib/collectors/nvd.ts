@@ -29,35 +29,50 @@ interface NvdVulnerability {
   };
 }
 
-/** 지수 백오프 재시도 fetch */
-async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
+/**
+ * 지수 백오프 재시도 fetch + JSON 파싱.
+ * 중요: 본문 읽기(resp.json())까지 재시도 안에 둔다. NVD 응답이 커서 본문 전송 중
+ * 연결이 끊기면 undici가 `TypeError: terminated`를 던지는데, 이 경우에도 재시도해야 한다.
+ */
+async function fetchNvdJson(url: string, options: RequestInit, maxRetries = 4): Promise<NvdApiResponse> {
   let lastError: Error = new Error('Unknown error');
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const resp = await fetch(url, options);
 
-      // 429 Rate Limit → Retry-After 헤더 확인 후 대기
+      // 429 Rate Limit → Retry-After 헤더 확인 후 대기 (재시도 횟수 소모하지 않음)
       if (resp.status === 429) {
         const retryAfter = parseInt(resp.headers.get('Retry-After') || '30', 10);
         console.warn(`[NVD] Rate limited. Waiting ${retryAfter}s...`);
         await sleep(retryAfter * 1000);
+        attempt--;
         continue;
       }
 
-      // 503/502 일시적 오류 → 지수 백오프
-      if (resp.status >= 500 && attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * 2000;
-        console.warn(`[NVD] Server error ${resp.status}. Retry in ${delay}ms...`);
-        await sleep(delay);
-        continue;
+      // 5xx 일시적 오류 → 지수 백오프 재시도
+      if (resp.status >= 500) {
+        if (attempt < maxRetries) {
+          const delay = Math.pow(2, attempt) * 2000;
+          console.warn(`[NVD] Server error ${resp.status}. Retry in ${delay}ms...`);
+          await sleep(delay);
+          continue;
+        }
+        throw new Error(`NVD API ${resp.status}`);
       }
 
-      return resp;
+      if (!resp.ok) {
+        const errBody = await resp.text().catch(() => '');
+        throw new Error(`NVD API ${resp.status}: ${errBody.slice(0, 200)}`);
+      }
+
+      // 본문 읽기도 재시도 범위 안에서 수행 (전송 중 'terminated' 방지)
+      return (await resp.json()) as NvdApiResponse;
     } catch (e: any) {
+      if (e?.message === 'aborted') throw e;   // 사용자 중지는 재시도하지 않음
       lastError = e;
       if (attempt < maxRetries) {
         const delay = Math.pow(2, attempt) * 2000;
-        console.warn(`[NVD] Request failed (${e.message}). Retry in ${delay}ms...`);
+        console.warn(`[NVD] 요청/응답 실패 (${e.message}). ${delay}ms 후 재시도 (${attempt + 1}/${maxRetries})`);
         await sleep(delay);
       }
     }
@@ -81,7 +96,8 @@ export async function collectNvd(daysBack: number = 30, signal?: AbortSignal) {
 
   let startIndex = 0;
   const allVulns: NvdVulnerability[] = [];
-  const resultsPerPage = 2000;
+  // 페이지가 너무 크면(2000) 본문 전송 중 연결이 끊겨 'terminated'가 나기 쉬움 → 500으로 축소
+  const resultsPerPage = 500;
 
   console.log(`[NVD] Collecting last ${daysBack} days (since ${since.toISOString().slice(0, 10)})`);
 
@@ -95,17 +111,11 @@ export async function collectNvd(daysBack: number = 30, signal?: AbortSignal) {
 
     if (startIndex > 0) await sleep(requestDelayMs, signal);
 
-    const resp = await fetchWithRetry(urlStr, {
+    const data = await fetchNvdJson(urlStr, {
       headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(300_000),
+      signal: AbortSignal.timeout(180_000),
     });
 
-    if (!resp.ok) {
-      const errBody = await resp.text().catch(() => '');
-      throw new Error(`NVD API ${resp.status}: ${errBody.slice(0, 200)}`);
-    }
-
-    const data: NvdApiResponse = await resp.json();
     if (!data.vulnerabilities?.length) break;
     allVulns.push(...data.vulnerabilities);
     console.log(`[NVD] Fetched ${allVulns.length} / ${data.totalResults ?? '?'}`);
