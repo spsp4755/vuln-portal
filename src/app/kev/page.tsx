@@ -38,6 +38,9 @@ const RS: Record<string, { color: string; bg: string }> = {
   Unknown:   { color: 'var(--text-muted)', bg: 'var(--border-dim)' },
 };
 
+// ko 값에 한글이 있을 때만 '실제 번역'으로 간주 (NVD가 ko에 영어를 복사해 넣는 경우 제외)
+const hasHangul = (s?: string | null) => /[가-힣]/.test(s || '');
+
 const RISK_BG: Record<string, string> = {
   '심각': 'rgba(255,59,59,0.15)', '높음': 'rgba(255,143,0,0.15)', '중간': 'rgba(245,197,24,0.15)', '낮음': 'rgba(0,212,255,0.15)',
 };
@@ -132,7 +135,7 @@ export default function KevPage() {
 
   // 설명 한국어 ↔ 원문(EN) 토글. 한국어가 없으면 AI로 생성 후 표시.
   const toggleLang = useCallback(async (v: KevVuln) => {
-    const koExists = !!(v.description?.ko && String(v.description.ko).trim());
+    const koExists = hasHangul(v.description?.ko);
     const cur = rowLang[v.cveId] ?? (koExists ? 'ko' : 'en');
     if (cur === 'ko') { setRowLang((p) => ({ ...p, [v.cveId]: 'en' })); return; }
     if (koExists) { setRowLang((p) => ({ ...p, [v.cveId]: 'ko' })); return; }
@@ -379,7 +382,7 @@ export default function KevPage() {
                     const sev = v.cvssScores[0]?.baseSeverity;
                     const sevClass = sev === 'CRITICAL' ? 'sev-critical' : sev === 'HIGH' ? 'sev-high' : '';
 
-                    const koDesc = v.description?.ko && String(v.description.ko).trim();
+                    const koDesc = hasHangul(v.description?.ko) ? String(v.description!.ko).trim() : '';
                     const enDesc = v.description?.en || '';
                     const lang = rowLang[v.cveId] ?? (koDesc ? 'ko' : 'en');
                     const descLine = lang === 'ko' ? koDesc : enDesc;

@@ -91,6 +91,9 @@ const SEVERITY_COLOR: Record<string, string> = {
   CRITICAL: '#ff3b3b', HIGH: '#ff8f00', MEDIUM: '#f5c518', LOW: '#00d4ff',
 };
 
+// ko 값에 한글이 있을 때만 '실제 번역'으로 간주 (NVD가 ko에 영어를 복사해 넣는 경우 제외)
+const hasHangul = (s?: string | null) => /[가-힣]/.test(s || '');
+
 const RISK_BG: Record<string, string> = {
   '심각': 'rgba(255,59,59,0.15)', '높음': 'rgba(255,143,0,0.15)', '중간': 'rgba(245,197,24,0.15)', '낮음': 'rgba(0,212,255,0.15)',
 };
@@ -276,7 +279,7 @@ export default function CveDetailPage() {
           </p>
           {(() => {
             const d = vuln.description as any;
-            const hasKo = !!(d?.ko && String(d.ko).trim());
+            const hasKo = hasHangul(d?.ko);
             const hasEn = !!(d?.en && String(d.en).trim());
             if (!hasKo || !hasEn) return null;
             return (
@@ -301,7 +304,7 @@ export default function CveDetailPage() {
         <div className="p-5">
           {(() => {
             const d = vuln.description as any;
-            const hasKo = !!(d?.ko && String(d.ko).trim());
+            const hasKo = hasHangul(d?.ko);
             const body = (showOriginal || !hasKo) ? (d?.en || d?.ko) : d.ko;
             return (
               <>

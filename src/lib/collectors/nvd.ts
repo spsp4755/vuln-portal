@@ -123,7 +123,8 @@ export async function collectNvd(daysBack: number = 30, signal?: AbortSignal) {
       const existing = await prisma.vulnerability.findUnique({ where: { cveId: cve.id } });
 
       const descEn = cve.descriptions?.find((d) => d.lang === 'en')?.value || '';
-      const descKo = cve.descriptions?.find((d) => d.lang === 'ko')?.value || descEn;
+      // 한국어 원문이 없으면 ko는 비워둔다(영어 복사 금지). AI 번역으로만 채운다.
+      const descKo = cve.descriptions?.find((d) => d.lang === 'ko')?.value || '';
 
       const vulnRecord = await prisma.vulnerability.upsert({
         where: { cveId: cve.id },
