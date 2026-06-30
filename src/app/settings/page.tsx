@@ -555,7 +555,7 @@ export default function SettingsPage() {
           {/* 치환 변수 안내 */}
           <div className="p-3 rounded-xl text-xs" style={{ background: 'var(--elevated)', border: '1px solid var(--border-dim)', color: 'var(--text-muted)' }}>
             프롬프트에 아래 변수를 쓰면 실제 값으로 치환됩니다:{' '}
-            {['{cveId}', '{description}', '{cvss}', '{cwe}', '{products}', '{kev}', '{epss}'].map((v) => (
+            {['{cveId}', '{description}', '{cvss}', '{cwe}', '{products}', '{kev}', '{requiredAction}', '{epss}'].map((v) => (
               <code key={v} style={{ margin: '0 3px', color: 'var(--cyan)' }}>{v}</code>
             ))}
           </div>

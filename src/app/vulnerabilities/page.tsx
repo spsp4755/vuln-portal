@@ -70,6 +70,8 @@ function VulnerabilitiesContent() {
   const [expanded,    setExpanded]    = useState<string | null>(null);
   const [rowBusy,     setRowBusy]     = useState<Record<string, boolean>>({});
   const [rowError,    setRowError]    = useState<Record<string, string>>({});
+  const [rowLang,     setRowLang]     = useState<Record<string, 'en' | 'ko'>>({});
+  const [langBusy,    setLangBusy]    = useState<Record<string, boolean>>({});
 
   // results.vulns 중 일부 CVE를 번역/분석 결과로 갱신
   const patchVulns = useCallback((updates: Record<string, { descriptionKo?: string | null; aiSummary?: AiSummaryLite }>) => {
@@ -141,6 +143,34 @@ function VulnerabilitiesContent() {
       setRowBusy((p) => ({ ...p, [v.cveId]: false }));
     }
   }, [expanded, patchVulns]);
+
+  // 설명 한국어 ↔ 원문(EN) 토글. 한국어가 없으면 AI로 생성 후 표시.
+  const toggleLang = useCallback(async (v: Vuln) => {
+    const koExists = !!((v.description as any)?.ko && String((v.description as any).ko).trim());
+    const cur = rowLang[v.cveId] ?? (koExists ? 'ko' : 'en');
+    if (cur === 'ko') { setRowLang((p) => ({ ...p, [v.cveId]: 'en' })); return; }
+    if (koExists) { setRowLang((p) => ({ ...p, [v.cveId]: 'ko' })); return; }
+    // 한국어 없음 → 생성
+    setLangBusy((p) => ({ ...p, [v.cveId]: true }));
+    setRowError((p) => ({ ...p, [v.cveId]: '' }));
+    try {
+      const res = await fetch('/api/ai/summarize', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cveId: v.cveId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        patchVulns({ [v.cveId]: { descriptionKo: data.descriptionKo, aiSummary: data.aiSummary } });
+        setRowLang((p) => ({ ...p, [v.cveId]: 'ko' }));
+      } else {
+        setRowError((p) => ({ ...p, [v.cveId]: data.error || 'AI 번역 실패' }));
+      }
+    } catch (e: any) {
+      setRowError((p) => ({ ...p, [v.cveId]: e.message }));
+    } finally {
+      setLangBusy((p) => ({ ...p, [v.cveId]: false }));
+    }
+  }, [rowLang, patchVulns]);
 
   const doSearch = useCallback((pg = 1, opts?: {
     kw?: string; sv?: string; kev?: boolean; from?: string; to?: string; lim?: number;
@@ -439,10 +469,13 @@ function VulnerabilitiesContent() {
                 {results?.vulns.map((v) => {
                   const cvss = v.cvssScores[0];
                   const koDesc = (v.description as any)?.ko && String((v.description as any).ko).trim();
-                  const desc = (koDesc || (v.description as any)?.en || '').slice(0, 130);
+                  const enDesc = (v.description as any)?.en || '';
+                  const lang = rowLang[v.cveId] ?? (koDesc ? 'ko' : 'en');
+                  const desc = ((lang === 'ko' ? koDesc : enDesc) || '').slice(0, 130);
                   const sevClass = cvss?.baseSeverity === 'CRITICAL' ? 'sev-critical' : cvss?.baseSeverity === 'HIGH' ? 'sev-high' : '';
                   const isOpen = expanded === v.cveId;
                   const ai = v.aiSummary;
+                  const langLoading = langBusy[v.cveId];
                   return (
                     <Fragment key={v.id}>
                     <tr className={sevClass}>
@@ -456,11 +489,17 @@ function VulnerabilitiesContent() {
                         <span className="line-clamp-2" style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
                           {desc || '—'}
                         </span>
-                        {koDesc && (
-                          <span className="inline-flex items-center gap-0.5 mt-1 text-xs px-1.5 py-0.5 rounded"
-                            style={{ background: 'rgba(124,58,237,0.12)', color: '#a78bfa', fontFamily: 'JetBrains Mono, monospace', fontSize: '9px' }}>
-                            <Sparkle size={8} weight="fill" /> 한국어
-                          </span>
+                        <button
+                          onClick={() => toggleLang(v)}
+                          disabled={langLoading}
+                          title={lang === 'ko' ? '원문(영어) 보기' : '한국어로 보기'}
+                          className="inline-flex items-center gap-1 mt-1 text-xs px-1.5 py-0.5 rounded transition-all"
+                          style={{ background: 'rgba(124,58,237,0.12)', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.25)', fontFamily: 'JetBrains Mono, monospace', fontSize: '9px' }}>
+                          <Sparkle size={8} weight="fill" />
+                          {langLoading ? '번역 중...' : lang === 'ko' ? '원문(EN)' : '한국어'}
+                        </button>
+                        {rowError[v.cveId] && lang !== 'ko' && (
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--red)' }}>{rowError[v.cveId]}</p>
                         )}
                       </td>
                       <td>

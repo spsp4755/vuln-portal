@@ -118,6 +118,7 @@ function buildVars(vuln: any) {
       cwe: (vuln.cweWeaknesses || []).map((w: any) => `${w.cweId} ${w.name}`).join(', ') || 'N/A',
       products: products || 'N/A',
       kev: vuln.kevEntry ? '예' : '아니오',
+      requiredAction: (vuln.kevEntry?.requiredAction || '').trim() || '없음',
       epss: vuln.epssScore ? Number(vuln.epssScore.score).toFixed(4) : 'N/A',
     } as Record<string, string>,
   };

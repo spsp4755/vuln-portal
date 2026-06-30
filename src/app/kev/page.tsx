@@ -68,6 +68,8 @@ export default function KevPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [rowBusy, setRowBusy] = useState<Record<string, boolean>>({});
   const [rowError, setRowError] = useState<Record<string, string>>({});
+  const [rowLang, setRowLang] = useState<Record<string, 'en' | 'ko'>>({});
+  const [langBusy, setLangBusy] = useState<Record<string, boolean>>({});
 
   const patchVulns = useCallback((updates: Record<string, { descriptionKo?: string | null; aiSummary?: AiSummaryLite }>) => {
     setVulns((prev) => prev.map((v) => {
@@ -127,6 +129,33 @@ export default function KevPage() {
       setRowBusy((p) => ({ ...p, [v.cveId]: false }));
     }
   }, [expanded, patchVulns]);
+
+  // 설명 한국어 ↔ 원문(EN) 토글. 한국어가 없으면 AI로 생성 후 표시.
+  const toggleLang = useCallback(async (v: KevVuln) => {
+    const koExists = !!(v.description?.ko && String(v.description.ko).trim());
+    const cur = rowLang[v.cveId] ?? (koExists ? 'ko' : 'en');
+    if (cur === 'ko') { setRowLang((p) => ({ ...p, [v.cveId]: 'en' })); return; }
+    if (koExists) { setRowLang((p) => ({ ...p, [v.cveId]: 'ko' })); return; }
+    setLangBusy((p) => ({ ...p, [v.cveId]: true }));
+    setRowError((p) => ({ ...p, [v.cveId]: '' }));
+    try {
+      const res = await fetch('/api/ai/summarize', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cveId: v.cveId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        patchVulns({ [v.cveId]: { descriptionKo: data.descriptionKo, aiSummary: data.aiSummary } });
+        setRowLang((p) => ({ ...p, [v.cveId]: 'ko' }));
+      } else {
+        setRowError((p) => ({ ...p, [v.cveId]: data.error || 'AI 번역 실패' }));
+      }
+    } catch (e: any) {
+      setRowError((p) => ({ ...p, [v.cveId]: e.message }));
+    } finally {
+      setLangBusy((p) => ({ ...p, [v.cveId]: false }));
+    }
+  }, [rowLang, patchVulns]);
 
   const fetchData = useCallback((pg: number, opts?: {
     ransomware?: string;
@@ -351,6 +380,10 @@ export default function KevPage() {
                     const sevClass = sev === 'CRITICAL' ? 'sev-critical' : sev === 'HIGH' ? 'sev-high' : '';
 
                     const koDesc = v.description?.ko && String(v.description.ko).trim();
+                    const enDesc = v.description?.en || '';
+                    const lang = rowLang[v.cveId] ?? (koDesc ? 'ko' : 'en');
+                    const descLine = lang === 'ko' ? koDesc : enDesc;
+                    const langLoading = langBusy[v.cveId];
                     const isOpen = expanded === v.cveId;
                     const ai = v.aiSummary;
                     return (
@@ -369,14 +402,20 @@ export default function KevPage() {
                           <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
                             {v.kevEntry.vulnerabilityName || `${v.kevEntry.vendorProject} / ${v.kevEntry.product}`}
                           </span>
-                          {koDesc && (
-                            <>
-                              <span className="line-clamp-2 mt-1" style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{koDesc}</span>
-                              <span className="inline-flex items-center gap-0.5 mt-1 text-xs px-1.5 py-0.5 rounded"
-                                style={{ background: 'rgba(124,58,237,0.12)', color: '#a78bfa', fontFamily: 'JetBrains Mono, monospace', fontSize: '9px' }}>
-                                <Sparkle size={8} weight="fill" /> 한국어
-                              </span>
-                            </>
+                          {descLine && (
+                            <span className="line-clamp-2 mt-1" style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{descLine}</span>
+                          )}
+                          <button
+                            onClick={() => toggleLang(v)}
+                            disabled={langLoading}
+                            title={lang === 'ko' ? '원문(영어) 보기' : '한국어로 보기'}
+                            className="inline-flex items-center gap-1 mt-1 text-xs px-1.5 py-0.5 rounded transition-all"
+                            style={{ background: 'rgba(124,58,237,0.12)', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.25)', fontFamily: 'JetBrains Mono, monospace', fontSize: '9px' }}>
+                            <Sparkle size={8} weight="fill" />
+                            {langLoading ? '번역 중...' : lang === 'ko' ? '원문(EN)' : '한국어'}
+                          </button>
+                          {rowError[v.cveId] && lang !== 'ko' && (
+                            <p className="text-xs mt-0.5" style={{ color: 'var(--red)' }}>{rowError[v.cveId]}</p>
                           )}
                         </td>
                         <td>
