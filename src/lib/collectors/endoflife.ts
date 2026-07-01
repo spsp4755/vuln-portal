@@ -1,20 +1,20 @@
 import { prisma } from '@/lib/prisma';
 import { getConfig } from '@/lib/config';
 
+// product는 endoflife.date API 슬러그와 일치해야 함 (틀리면 404로 건너뜀)
 const EOL_PRODUCTS = [
-  { product: 'windows-11', category: 'os' },
+  { product: 'windows', category: 'os' },
   { product: 'windows-server', category: 'os' },
   { product: 'ubuntu', category: 'os' },
   { product: 'centos', category: 'os' },
-  { product: 'redhat', category: 'os' },
+  { product: 'rhel', category: 'os' },
   { product: 'macos', category: 'os' },
   { product: 'android', category: 'os' },
   { product: 'chrome', category: 'browser' },
   { product: 'firefox', category: 'browser' },
-  { product: 'edge', category: 'browser' },
   { product: 'python', category: 'runtime' },
   { product: 'nodejs', category: 'runtime' },
-  { product: 'java', category: 'runtime' },
+  { product: 'eclipse-temurin', category: 'runtime' },
   { product: 'dotnet', category: 'runtime' },
   { product: 'php', category: 'runtime' },
   { product: 'react', category: 'framework' },
@@ -23,7 +23,7 @@ const EOL_PRODUCTS = [
   { product: 'mysql', category: 'database' },
   { product: 'postgresql', category: 'database' },
   { product: 'redis', category: 'database' },
-  { product: 'docker', category: 'infra' },
+  { product: 'docker-engine', category: 'infra' },
   { product: 'kubernetes', category: 'infra' },
   { product: 'nginx', category: 'infra' },
 ];
