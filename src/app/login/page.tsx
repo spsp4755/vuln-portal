@@ -1,11 +1,10 @@
 ﻿'use client';
 
 import { useState, FormEvent, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Shield, EnvelopeSimple, LockSimple, SignIn, Eye, EyeSlash } from '@phosphor-icons/react';
 
 function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
@@ -25,9 +24,11 @@ function LoginForm() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || '로그인 실패'); return; }
-      const from = params.get('from') || '/';
-      router.push(from);
-      router.refresh();
+      // 오픈 리다이렉트 방지: 내부 경로('/'로 시작)만 허용
+      const raw = params.get('from') || '/';
+      const from = raw.startsWith('/') && !raw.startsWith('//') ? raw : '/';
+      // 전체 페이지 이동으로 방금 설정된 세션 쿠키를 확실히 전달 (RSC 이동 레이스 방지)
+      window.location.href = from;
     } catch {
       setError('서버 연결 오류');
     } finally {

@@ -28,6 +28,9 @@ model Vulnerability {
   aiSummary        AiSummary?
   exploitEntries   ExploitEntry[]
 
+  @@index([publishedAt])
+  @@index([modifiedAt])
+  @@index([isKev])
   @@map("vulnerability")
 }
 
@@ -48,6 +51,7 @@ model CvssScore {
   vulnerability         Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
 
   @@unique([vulnerabilityId, version])
+  @@index([baseSeverity])
   @@map("cvss_score")
 }
 
@@ -75,6 +79,7 @@ model CpeMapping {
 
   vulnerability  Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
 
+  @@index([vulnerabilityId])
   @@map("cpe_mapping")
 }
 
@@ -87,6 +92,7 @@ model CweWeakness {
 
   vulnerability   Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
 
+  @@index([vulnerabilityId])
   @@map("cwe_weakness")
 }
 
@@ -106,6 +112,8 @@ model KevEntry {
 
   vulnerability      Vulnerability @relation(fields: [vulnerabilityId], references: [id], onDelete: Cascade)
 
+  @@index([dateAdded])
+  @@index([dueDate])
   @@map("kev_entry")
 }
 
@@ -121,6 +129,9 @@ model EolData {
   supportStatus String    @default("Active") @map("support_status")
   category      String
 
+  @@index([eolDate])
+  @@index([isEol])
+  @@index([category])
   @@map("eol_data")
 }
 
