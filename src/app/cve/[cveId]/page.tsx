@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
+import { TermTooltip } from '@/components/ui/Tooltip';
 import {
   ShieldWarning, Cube, Code, Link as LinkIcon, ArrowLeft,
   Sparkle, Robot, ArrowSquareOut, GitBranch, ArrowRight, Bug,
@@ -69,7 +70,7 @@ interface VulnDetail {
 }
 
 function Section({ title, icon, children, accent = 'var(--border-base)' }: {
-  title: string; icon?: React.ReactNode; children: React.ReactNode; accent?: string;
+  title: React.ReactNode; icon?: React.ReactNode; children: React.ReactNode; accent?: string;
 }) {
   return (
     <div className="card overflow-hidden">
@@ -324,7 +325,7 @@ export default function CveDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* CVSS */}
-        <Section title="CVSS 점수" accent="var(--cyan)">
+        <Section title={<><TermTooltip term="CVSS">CVSS</TermTooltip> 점수</>} accent="var(--cyan)">
           <div className="space-y-3">
             {vuln.cvssScores.map((cvss) => (
               <div key={cvss.version} className="p-3 rounded-lg" style={{ background: 'var(--elevated)', border: '1px solid var(--border-dim)' }}>
@@ -367,7 +368,7 @@ export default function CveDetailPage() {
         </Section>
 
         {/* CWE */}
-        <Section title="CWE 약점 분류" icon={<Code size={15} />} accent="#f59e0b">
+        <Section title={<><TermTooltip term="CWE">CWE</TermTooltip> 약점 분류</>} icon={<Code size={15} />} accent="#f59e0b">
           {vuln.cweWeaknesses.length > 0 ? (
             <div className="space-y-2">
               {vuln.cweWeaknesses.map((w) => {
@@ -419,7 +420,7 @@ export default function CveDetailPage() {
         </Section>
 
         {/* CPE */}
-        <Section title="영향 제품 (CPE)" icon={<Cube size={15} />} accent="var(--cyan)">
+        <Section title={<>영향 제품 (<TermTooltip term="CPE">CPE</TermTooltip>)</>} icon={<Cube size={15} />} accent="var(--cyan)">
           {vuln.cpeMappings.length > 0 ? (
             <div className="space-y-1.5 max-h-72 overflow-auto pr-1">
               {/* deduplicated by vendor/product */}
@@ -470,7 +471,7 @@ export default function CveDetailPage() {
 
         {/* KEV info */}
         {vuln.kevEntry && (
-          <Section title="CISA KEV 상세" icon={<ShieldWarning size={15} weight="fill" />} accent="var(--red)">
+          <Section title={<>CISA <TermTooltip term="KEV">KEV</TermTooltip> 상세</>} icon={<ShieldWarning size={15} weight="fill" />} accent="var(--red)">
             <div className="space-y-2">
               {[
                 ['제품', `${vuln.kevEntry.vendorProject} / ${vuln.kevEntry.product}`],

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { Clock, Biohazard, ArrowUp, ArrowDown, ArrowsDownUp, CaretLeft, CaretRight, Translate, Sparkle, CaretDown, ArrowRight } from '@phosphor-icons/react';
-import { TermTooltip } from '@/components/ui/Tooltip';
+import { TermTooltip, Tooltip } from '@/components/ui/Tooltip';
 import { format, differenceInDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
 
@@ -348,16 +348,16 @@ export default function KevPage() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>CVE ID</th>
-                    <th>취약점명</th>
-                    <th>심각도</th>
-                    <th>랜섬웨어</th>
+                    <th><TermTooltip term="CVE">CVE ID</TermTooltip></th>
+                    <th><Tooltip content="CISA가 부여한 취약점 이름. 아래 [한국어] 버튼으로 설명을 번역할 수 있습니다.">취약점명</Tooltip></th>
+                    <th><TermTooltip term="CVSS">심각도</TermTooltip></th>
+                    <th><Tooltip content="랜섬웨어 공격에 악용된 이력 여부 (Known = 악용 확인, Unknown = 미확인)">랜섬웨어</Tooltip></th>
                     <th
                       style={thStyle}
                       onClick={() => handleSort('dateAdded')}
                     >
                       <span className="inline-flex items-center gap-1">
-                        추가일 <SortIcon field="dateAdded" current={sortBy} order={sortOrder} />
+                        <Tooltip content="CISA KEV 목록에 등재된 날짜">추가일</Tooltip> <SortIcon field="dateAdded" current={sortBy} order={sortOrder} />
                       </span>
                     </th>
                     <th
@@ -365,10 +365,10 @@ export default function KevPage() {
                       onClick={() => handleSort('dueDate')}
                     >
                       <span className="inline-flex items-center gap-1">
-                        시정 기한 <SortIcon field="dueDate" current={sortBy} order={sortOrder} />
+                        <Tooltip content="CISA가 권고하는 조치 완료 기한. 기한이 지나면 '초과'로 표시됩니다.">시정 기한</Tooltip> <SortIcon field="dueDate" current={sortBy} order={sortOrder} />
                       </span>
                     </th>
-                    <th style={{ whiteSpace: 'nowrap' }}>조치</th>
+                    <th style={{ whiteSpace: 'nowrap' }}><Tooltip content="AI가 위험도·요약·단계별 조치 방법을 생성합니다 (클릭 시 그 자리에서 펼쳐짐)">조치</Tooltip></th>
                   </tr>
                 </thead>
                 <tbody>

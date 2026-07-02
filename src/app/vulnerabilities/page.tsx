@@ -7,7 +7,7 @@ import { SeverityBadge } from '@/components/ui/SeverityBadge';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { ShieldWarning, MagnifyingGlass, ArrowLeft, ArrowRight, X, CalendarBlank, SortAscending, ArrowUp, ArrowDown, Translate, Sparkle, CaretDown } from '@phosphor-icons/react';
-import { TermTooltip } from '@/components/ui/Tooltip';
+import { TermTooltip, Tooltip } from '@/components/ui/Tooltip';
 
 interface AiSummaryLite {
   summaryKo: string; riskLevel: string; riskReason?: string | null; recommendation?: string | null;
@@ -450,22 +450,22 @@ function VulnerabilitiesContent() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>CVE ID</th>
-                  <th>설명</th>
+                  <th><TermTooltip term="CVE">CVE ID</TermTooltip></th>
+                  <th><Tooltip content="취약점 영문 설명. [한국어] 버튼을 누르면 AI가 번역해 보여줍니다.">설명</Tooltip></th>
                   <th onClick={() => toggleSort('cvssScore')} style={thStyle('cvssScore')}>
-                    심각도 <SortIcon col="cvssScore" sortBy={sortBy} sortOrder={sortOrder} />
+                    <TermTooltip term="CVSS">심각도</TermTooltip> <SortIcon col="cvssScore" sortBy={sortBy} sortOrder={sortOrder} />
                   </th>
                   <th onClick={() => toggleSort('epssScore')} style={thStyle('epssScore')}>
                     <TermTooltip term="EPSS">EPSS</TermTooltip> <SortIcon col="epssScore" sortBy={sortBy} sortOrder={sortOrder} />
                   </th>
                   <th onClick={() => toggleSort('publishedAt')} style={thStyle('publishedAt')}>
-                    공개일 <SortIcon col="publishedAt" sortBy={sortBy} sortOrder={sortOrder} />
+                    <Tooltip content="취약점이 최초 공개(published)된 날짜">공개일</Tooltip> <SortIcon col="publishedAt" sortBy={sortBy} sortOrder={sortOrder} />
                   </th>
                   <th onClick={() => toggleSort('modifiedAt')} style={thStyle('modifiedAt')}>
-                    수정일 <SortIcon col="modifiedAt" sortBy={sortBy} sortOrder={sortOrder} />
+                    <Tooltip content="취약점 정보가 마지막으로 갱신된 날짜">수정일</Tooltip> <SortIcon col="modifiedAt" sortBy={sortBy} sortOrder={sortOrder} />
                   </th>
-                  <th>상태</th>
-                  <th style={{ whiteSpace: 'nowrap' }}>조치</th>
+                  <th><Tooltip content="KEV 등재 여부, 관련 CWE 등 상태 배지">상태</Tooltip></th>
+                  <th style={{ whiteSpace: 'nowrap' }}><Tooltip content="AI가 위험도·요약·단계별 조치 방법을 생성합니다 (클릭 시 그 자리에서 펼쳐짐)">조치</Tooltip></th>
                 </tr>
               </thead>
               <tbody>
