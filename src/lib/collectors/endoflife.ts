@@ -79,8 +79,13 @@ export async function collectEndoflife(daysBack?: number) {
       const eolDateParsed =
         eolDate && !isNaN(new Date(eolDate).getTime()) ? new Date(eolDate) : null;
 
-      // cutoff 이전에 EOL된 항목은 건너뜀 (날짜가 없으면 유지)
-      if (eolDateParsed && eolDateParsed < cutoffDate) {
+      // EOL 날짜가 없는(N/A) 항목은 저장하지 않음 — '임박 종료' 추적에 의미 없음
+      if (!eolDateParsed) {
+        skippedCount++;
+        continue;
+      }
+      // cutoff 이전에 이미 오래 지난 EOL은 건너뜀
+      if (eolDateParsed < cutoffDate) {
         skippedCount++;
         continue;
       }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { CalendarX, ArrowUp, ArrowDown, ArrowsDownUp } from '@phosphor-icons/react';
-import { TermTooltip } from '@/components/ui/Tooltip';
+import { TermTooltip, Tooltip } from '@/components/ui/Tooltip';
 import { format, differenceInDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
 
@@ -115,7 +115,7 @@ export default function EolPage() {
             <option value="eolDate">EOL 날짜순</option>
             <option value="releaseDate">릴리스일순</option>
             <option value="product">제품명순</option>
-            <option value="cycle">사이클순</option>
+            <option value="cycle">버전순</option>
           </select>
           <button
             onClick={() => setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
@@ -141,28 +141,44 @@ export default function EolPage() {
                     style={{ cursor: 'pointer', userSelect: 'none' }}
                     onClick={() => handleColumnSort('product')}
                   >
-                    <span className="flex items-center gap-1">제품 <SortIcon field="product" /></span>
+                    <span className="flex items-center gap-1">
+                      <Tooltip content="endoflife.date에서 추적하는 소프트웨어 제품명 (예: ubuntu, nodejs, postgresql)">제품</Tooltip>
+                      <SortIcon field="product" />
+                    </span>
                   </th>
                   <th
                     style={{ cursor: 'pointer', userSelect: 'none' }}
                     onClick={() => handleColumnSort('cycle')}
                   >
-                    <span className="flex items-center gap-1">사이클 <SortIcon field="cycle" /></span>
+                    <span className="flex items-center gap-1">
+                      <Tooltip content="제품의 릴리스 주기 = 메이저 버전 라인. 예: Ubuntu 22.04, Node.js 20, PostgreSQL 16. endoflife.date의 'cycle' 값으로, 각 버전마다 지원 기간이 다릅니다.">버전(사이클)</Tooltip>
+                      <SortIcon field="cycle" />
+                    </span>
                   </th>
-                  <th>카테고리</th>
+                  <th>
+                    <Tooltip content="제품 분류: OS · 브라우저 · 런타임 · 프레임워크 · 데이터베이스 · 인프라">카테고리</Tooltip>
+                  </th>
                   <th
                     style={{ cursor: 'pointer', userSelect: 'none' }}
                     onClick={() => handleColumnSort('releaseDate')}
                   >
-                    <span className="flex items-center gap-1">릴리스일 <SortIcon field="releaseDate" /></span>
+                    <span className="flex items-center gap-1">
+                      <Tooltip content="해당 버전이 정식 출시된 날짜">릴리스일</Tooltip>
+                      <SortIcon field="releaseDate" />
+                    </span>
                   </th>
                   <th
                     style={{ cursor: 'pointer', userSelect: 'none' }}
                     onClick={() => handleColumnSort('eolDate')}
                   >
-                    <span className="flex items-center gap-1">EOL 날짜 <SortIcon field="eolDate" /></span>
+                    <span className="flex items-center gap-1">
+                      <Tooltip content="제조사의 보안 지원이 종료되는(된) 날짜. 이 날짜 이후에는 보안 패치가 제공되지 않아 위험합니다.">EOL 날짜</Tooltip>
+                      <SortIcon field="eolDate" />
+                    </span>
                   </th>
-                  <th>상태</th>
+                  <th>
+                    <Tooltip content="임박 = 90일 내 지원 종료 예정 · EOL = 이미 지원 종료 · Active = 지원 중">상태</Tooltip>
+                  </th>
                 </tr>
               </thead>
               <tbody>
