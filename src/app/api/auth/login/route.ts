@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { hashPassword, createSessionToken, SESSION_MAX_AGE, COOKIE_NAME_EXPORT } from '@/lib/auth';
+import { log } from '@/lib/logger';
 
 // 기본 관리자 계정 (DB에 없으면 이 값으로 fallback)
 const DEFAULT_EMAIL = 'admin@koreacb.com';
@@ -34,9 +35,12 @@ export async function POST(req: NextRequest) {
       valid = true;
     }
 
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('x-real-ip') || 'local';
     if (!valid) {
+      log.warn('AUTH', `로그인 실패 email=${email} ip=${ip}`);
       return NextResponse.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 });
     }
+    log.info('AUTH', `로그인 성공 email=${email.toLowerCase()} ip=${ip}`);
 
     const token = createSessionToken(email.toLowerCase());
     const res = NextResponse.json({ ok: true });

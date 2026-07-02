@@ -300,9 +300,9 @@ export default function DashboardPage() {
         <KpiCard
           label={<>고위험 <TermTooltip term="EPSS">EPSS</TermTooltip></>}
           value={summary?.highEpss || 0}
-          sub="EPSS score ≥ 0.5"
+          sub="악용 확률 50% 이상 (EPSS ≥ 0.5)"
           accent="#f472b6" icon={<TrendUp size={20} style={{ color: '#f472b6' }} />}
-          href="/vulnerabilities" delay={360}
+          href="/vulnerabilities?epss=50&sort=epssScore&order=desc" delay={360}
         />
       </div>
 

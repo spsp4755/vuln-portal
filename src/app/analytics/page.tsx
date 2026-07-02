@@ -1,11 +1,12 @@
 ﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { ChartBar, Shield, ShieldWarning, TrendUp, Warning, Database, Clock } from '@phosphor-icons/react';
+import { ChartBar, Shield, ShieldWarning, TrendUp, Warning, Database, Clock, CursorClick } from '@phosphor-icons/react';
 import { TermTooltip } from '@/components/ui/Tooltip';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -78,9 +79,11 @@ function SectionCard({ title, sub, icon, children, accent = 'var(--cyan)' }: {
   );
 }
 
-function KpiCard({ label, value, sub, accent, icon }: { label: string; value: React.ReactNode; sub: string; accent: string; icon: React.ReactNode }) {
+function KpiCard({ label, value, sub, accent, icon, onClick }: { label: string; value: React.ReactNode; sub: string; accent: string; icon: React.ReactNode; onClick?: () => void }) {
   return (
-    <div className="card p-4" style={{ borderColor: `${accent}25`, background: `${accent}06` }}>
+    <div className={`card p-4${onClick ? ' cursor-pointer transition-all hover:brightness-125' : ''}`}
+      onClick={onClick}
+      style={{ borderColor: `${accent}25`, background: `${accent}06` }}>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs mb-1 uppercase tracking-wider" style={{ fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 700, color: 'var(--text-muted)' }}>{label}</p>
@@ -101,10 +104,23 @@ const RANGE_OPTIONS = [
   { label: '최근 1년',   value: '365' },
 ];
 
+// CVSS 구간 버킷 → 심각도 매핑 ('7.0-8.9 (HIGH)' → 'HIGH')
+function bucketToSeverity(bucket: string): string {
+  const m = bucket.match(/\(([A-Z]+)\)/);
+  return m ? m[1] : '';
+}
+
 export default function AnalyticsPage() {
+  const router = useRouter();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState('90');
+
+  // 차트 → 목록/KEV로 이동하는 딥링크 헬퍼
+  const goToVulns = useCallback((params: Record<string, string>) => {
+    const p = new URLSearchParams(params);
+    router.push(`/vulnerabilities?${p.toString()}`);
+  }, [router]);
 
   const fetchData = useCallback((r: string) => {
     setLoading(true);
@@ -132,8 +148,11 @@ export default function AnalyticsPage() {
           <h1 style={{ fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 800, fontSize: '1.6rem', letterSpacing: '-0.03em', color: 'var(--text-primary)' }}>
             통계 분석
           </h1>
-          <p className="mt-1 text-xs" style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)' }}>
+          <p className="mt-1 text-xs flex items-center gap-1.5" style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)' }}>
             수집된 취약점 데이터 기반 트렌드 및 분포 분석
+            <span className="inline-flex items-center gap-1 ml-1 px-1.5 py-0.5 rounded" style={{ background: 'var(--cyan-dim)', color: 'var(--cyan)', fontSize: '10px' }}>
+              <CursorClick size={10} weight="fill" /> 그래프 클릭 → 해당 목록으로 이동
+            </span>
           </p>
         </div>
         {/* 기간 선택 */}
@@ -158,11 +177,16 @@ export default function AnalyticsPage() {
         <KpiCard label={`기간 내 신규 CVE`}
           value={loading ? '—' : (data?.totals.vulnerabilitiesRange ?? 0).toLocaleString()}
           sub={`최근 ${range}일 · 누적 ${(data?.totals.vulnerabilities ?? 0).toLocaleString()}`}
-          accent="var(--cyan)" icon={<Shield size={18} weight="fill" />} />
+          accent="var(--cyan)" icon={<Shield size={18} weight="fill" />}
+          onClick={() => {
+            const from = new Date(Date.now() - Number(range) * 86400000).toISOString().slice(0, 10);
+            goToVulns({ dateFrom: from, sort: 'publishedAt', order: 'desc' });
+          }} />
         <KpiCard label="기간 내 KEV"
           value={loading ? '—' : (data?.totals.kevRange ?? 0).toLocaleString()}
           sub={`${kevRatio}% · 누적 ${(data?.totals.kev ?? 0).toLocaleString()}`}
-          accent="var(--red)" icon={<ShieldWarning size={18} weight="fill" />} />
+          accent="var(--red)" icon={<ShieldWarning size={18} weight="fill" />}
+          onClick={() => router.push('/kev')} />
         <KpiCard label="기간 내 평균 CVSS"
           value={loading ? '—' : (data?.totals.avgCvssRange ?? '—')}
           sub={`전체 평균 ${data?.totals.avgCvss ?? '—'} · v3.1`}
@@ -219,7 +243,9 @@ export default function AnalyticsPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={data?.severity ?? []} dataKey="count" nameKey="severity"
-                      cx="50%" cy="50%" innerRadius={45} outerRadius={72} paddingAngle={2}>
+                      cx="50%" cy="50%" innerRadius={45} outerRadius={72} paddingAngle={2}
+                      style={{ cursor: 'pointer' }}
+                      onClick={(d: any) => { const sv = d?.payload?.severity ?? d?.severity; if (sv) goToVulns({ severity: sv }); }}>
                       {data?.severity.map((s) => (
                         <Cell key={s.severity} fill={SEVERITY_COLORS[s.severity] ?? '#666'} />
                       ))}
@@ -230,7 +256,8 @@ export default function AnalyticsPage() {
               </div>
               <div className="space-y-2 flex-1">
                 {data?.severity.sort((a, b) => b.count - a.count).map((s) => (
-                  <div key={s.severity} className="flex items-center gap-2">
+                  <div key={s.severity} className="flex items-center gap-2 cursor-pointer transition-opacity hover:opacity-70"
+                    onClick={() => goToVulns({ severity: s.severity })} title={`${s.severity} 취약점 목록 보기`}>
                     <div className="w-2 h-2 rounded-full shrink-0" style={{ background: SEVERITY_COLORS[s.severity] ?? '#666' }} />
                     <span className="text-xs w-20 shrink-0" style={{ fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 600, color: 'var(--text-secondary)' }}>
                       {s.severity}
@@ -269,7 +296,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* 상위 벤더 */}
-      <SectionCard title="벤더별 취약점 수 (Top 15)" sub="CPE 매핑 기반" icon={<ChartBar size={15} weight="fill" />} accent="var(--cyan)">
+      <SectionCard title="벤더별 취약점 수 (Top 15)" sub="CPE 매핑 기반 · 막대 클릭 시 해당 벤더 취약점 목록" icon={<ChartBar size={15} weight="fill" />} accent="var(--cyan)">
         {loading ? <div className="skeleton h-64 w-full rounded-xl" /> : (
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={data?.topVendors ?? []} margin={{ top: 0, right: 10, bottom: 60, left: -10 }}>
@@ -277,9 +304,10 @@ export default function AnalyticsPage() {
               <XAxis dataKey="vendor" tick={{ fontSize: 10, fill: '#888', fontFamily: 'JetBrains Mono' }}
                 angle={-40} textAnchor="end" interval={0} />
               <YAxis tick={{ fontSize: 10, fill: '#666', fontFamily: 'JetBrains Mono' }} />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,212,255,0.08)' }} />
               <Bar dataKey="count" name="취약점 수" fill="#00d4ff" radius={[3, 3, 0, 0]}
-                fillOpacity={0.85} />
+                fillOpacity={0.85} style={{ cursor: 'pointer' }}
+                onClick={(d: any) => { const vd = d?.payload?.vendor ?? d?.vendor; if (vd) goToVulns({ vendor: vd }); }} />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -288,7 +316,7 @@ export default function AnalyticsPage() {
       {/* 2열 — KEV 월별 / CVSS 분포 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-in delay-200">
         {/* KEV 월별 추이 */}
-        <SectionCard title={<><TermTooltip term="KEV">KEV</TermTooltip> 월별 신규 등재 추이</>} sub="CISA KEV 기준 최근 12개월" icon={<ShieldWarning size={15} weight="fill" />} accent="var(--red)">
+        <SectionCard title={<><TermTooltip term="KEV">KEV</TermTooltip> 월별 신규 등재 추이</>} sub="CISA KEV 기준 · 클릭 시 KEV 목록" icon={<ShieldWarning size={15} weight="fill" />} accent="var(--red)">
           {loading ? <div className="skeleton h-52 w-full rounded-xl" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={data?.kevMonthly ?? []} margin={{ top: 5, right: 10, bottom: 20, left: -10 }}>
@@ -296,15 +324,16 @@ export default function AnalyticsPage() {
                 <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#888', fontFamily: 'JetBrains Mono' }}
                   angle={-30} textAnchor="end" interval={0} />
                 <YAxis tick={{ fontSize: 10, fill: '#666', fontFamily: 'JetBrains Mono' }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="count" name="KEV 등재 수" fill="#ff3b3b" radius={[3, 3, 0, 0]} fillOpacity={0.8} />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,59,59,0.08)' }} />
+                <Bar dataKey="count" name="KEV 등재 수" fill="#ff3b3b" radius={[3, 3, 0, 0]} fillOpacity={0.8}
+                  style={{ cursor: 'pointer' }} onClick={() => router.push('/kev')} />
               </BarChart>
             </ResponsiveContainer>
           )}
         </SectionCard>
 
         {/* CVSS 점수 구간 */}
-        <SectionCard title={<><TermTooltip term="CVSS">CVSS</TermTooltip> 점수 구간 분포</>} sub="CVSS v3.1 기준" icon={<Warning size={15} weight="fill" />} accent="var(--orange)">
+        <SectionCard title={<><TermTooltip term="CVSS">CVSS</TermTooltip> 점수 구간 분포</>} sub="CVSS v3.1 기준 · 클릭 시 해당 심각도 목록" icon={<Warning size={15} weight="fill" />} accent="var(--orange)">
           {loading ? <div className="skeleton h-52 w-full rounded-xl" /> : (
             <div className="space-y-3 pt-2">
               {data?.cvssDist.map((d) => {
@@ -312,8 +341,10 @@ export default function AnalyticsPage() {
                 const total = data.cvssDist.reduce((a, b) => a + b.count, 0) || 1;
                 const pct = (d.count / total * 100).toFixed(1);
                 const color = sev?.includes('CRITICAL') ? '#ff3b3b' : sev?.includes('HIGH') ? '#ff8f00' : sev?.includes('MEDIUM') ? '#f5c518' : '#00d4ff';
+                const sevKey = bucketToSeverity(d.bucket);
                 return (
-                  <div key={d.bucket}>
+                  <div key={d.bucket} className="cursor-pointer transition-opacity hover:opacity-70"
+                    onClick={() => sevKey && goToVulns({ severity: sevKey })} title={`${sevKey} 심각도 취약점 목록 보기`}>
                     <div className="flex justify-between mb-1">
                       <span className="text-xs font-semibold" style={{ fontFamily: 'JetBrains Mono, monospace', color }}>{d.bucket}</span>
                       <span className="text-xs" style={{ fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-muted)' }}>
@@ -332,15 +363,17 @@ export default function AnalyticsPage() {
       </div>
 
       {/* CWE Top 10 */}
-      <SectionCard title={<><TermTooltip term="CWE">CWE</TermTooltip> 취약점 유형 Top 10</>} sub="가장 많이 발생하는 취약점 유형" icon={<ChartBar size={15} weight="fill" />} accent="var(--yellow)">
+      <SectionCard title={<><TermTooltip term="CWE">CWE</TermTooltip> 취약점 유형 Top 10</>} sub="가장 많이 발생하는 취약점 유형 · 막대 클릭 시 해당 CWE 목록" icon={<ChartBar size={15} weight="fill" />} accent="var(--yellow)">
         {loading ? <div className="skeleton h-64 w-full rounded-xl" /> : (
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={data?.cwe ?? []} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
               <XAxis type="number" tick={{ fontSize: 10, fill: '#666', fontFamily: 'JetBrains Mono' }} />
               <YAxis type="category" dataKey="cwe_id" width={100}
                 tick={{ fontSize: 10, fill: '#aaa', fontFamily: 'JetBrains Mono' }} />
-              <Tooltip content={<CustomTooltip />} formatter={(v: any, n: any, p: any) => [v, p.payload.name || p.payload.cwe_id]} />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(245,197,24,0.08)' }} formatter={(v: any, n: any, p: any) => [v, p.payload.name || p.payload.cwe_id]} />
               <Bar dataKey="count" name="취약점 수" fill="#f5c518" radius={[0, 4, 4, 0]} fillOpacity={0.85}
+                style={{ cursor: 'pointer' }}
+                onClick={(d: any) => { const cwe = d?.payload?.cwe_id ?? d?.cwe_id; if (cwe) goToVulns({ keyword: cwe }); }}
                 label={{ position: 'right', fontSize: 10, fill: '#888', fontFamily: 'JetBrains Mono', formatter: (v: any) => v.toLocaleString() }} />
             </BarChart>
           </ResponsiveContainer>

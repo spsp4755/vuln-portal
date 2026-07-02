@@ -1,7 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { log } from '@/lib/logger';
 
 const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/v1/', '/api/health'];
 const SECRET = process.env.AUTH_SECRET || 'vuln-portal-default-secret-change-in-prod';
+
+// 로그에서 제외할 소음성 경로 (정적 자산 · 폰트 · RSC 프리페치)
+function isNoise(pathname: string): boolean {
+  return (
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/fonts/') ||
+    pathname === '/favicon.ico' ||
+    /\.(?:woff2?|ttf|png|jpg|jpeg|svg|ico|css|js|map)$/.test(pathname)
+  );
+}
+
+function clientIp(req: NextRequest): string {
+  return (
+    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+    req.headers.get('x-real-ip') ||
+    'local'
+  );
+}
 
 async function verifyToken(token: string): Promise<boolean> {
   try {
@@ -32,7 +51,11 @@ async function verifyToken(token: string): Promise<boolean> {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  const logReq = !isNoise(pathname);
+  const method = req.method;
+
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+    if (logReq) log.info('HTTP', `${method} ${pathname} (public) ${clientIp(req)}`);
     return NextResponse.next();
   }
 
@@ -40,6 +63,7 @@ export async function middleware(req: NextRequest) {
   const valid = token ? await verifyToken(token) : false;
 
   if (!valid) {
+    if (logReq) log.warn('AUTH', `거부 ${method} ${pathname} (토큰 ${token ? '만료/무효' : '없음'}) ${clientIp(req)}`);
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
     }
@@ -49,6 +73,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  if (logReq) log.info('HTTP', `${method} ${pathname} (auth ok)`);
   return NextResponse.next();
 }
 

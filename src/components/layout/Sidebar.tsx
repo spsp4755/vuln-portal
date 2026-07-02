@@ -8,33 +8,32 @@ import {
   SignOut, Sun, Moon, Users,
 } from '@phosphor-icons/react';
 import { useTheme } from '@/components/ThemeProvider';
-import { TermTooltip } from '@/components/ui/Tooltip';
 
 const navGroups = [
   {
     label: '모니터링',
     items: [
-      { href: '/',             label: '대시보드',   icon: SquaresFour, term: null },
-      { href: '/action-items', label: '시정 작업',  icon: Clipboard,   term: null },
-      { href: '/analytics',    label: '통계 분석',  icon: ChartBar,    term: null },
+      { href: '/',             label: '대시보드',   icon: SquaresFour },
+      { href: '/action-items', label: '시정 작업',  icon: Clipboard   },
+      { href: '/analytics',    label: '통계 분석',  icon: ChartBar    },
     ],
   },
   {
     label: '취약점',
     items: [
-      { href: '/vulnerabilities', label: '취약점 목록', icon: Shield,        term: null },
-      { href: '/search',          label: '고급 검색',   icon: MagnifyingGlass, term: null },
-      { href: '/kev',             label: 'KEV 목록',    icon: ShieldWarning, term: 'KEV' },
-      { href: '/eol',             label: 'EOL 임박',    icon: CalendarX,     term: 'EOL' },
+      { href: '/vulnerabilities', label: '취약점 목록', icon: Shield          },
+      { href: '/search',          label: '고급 검색',   icon: MagnifyingGlass },
+      { href: '/kev',             label: 'KEV 목록',    icon: ShieldWarning   },
+      { href: '/eol',             label: 'EOL 임박',    icon: CalendarX       },
     ],
   },
   {
     label: '관리',
     items: [
-      { href: '/watchlist', label: '워치리스트',  icon: Bell,     term: null },
-      { href: '/data',      label: '데이터 관리', icon: Database, term: null },
-      { href: '/users',     label: '사용자 관리', icon: Users,    term: null },
-      { href: '/settings',  label: '설정',        icon: Gear,     term: null },
+      { href: '/watchlist', label: '워치리스트',  icon: Bell     },
+      { href: '/data',      label: '데이터 관리', icon: Database },
+      { href: '/users',     label: '사용자 관리', icon: Users    },
+      { href: '/settings',  label: '설정',        icon: Gear     },
     ],
   },
 ] as const;
@@ -81,11 +80,8 @@ export const Sidebar = () => {
               {group.label}
             </p>
             <div className="space-y-0.5">
-              {group.items.map(({ href, label, icon: Icon, term }) => {
+              {group.items.map(({ href, label, icon: Icon }) => {
                 const active = pathname === href || (href !== '/' && pathname.startsWith(href));
-                const labelNode = term
-                  ? <TermTooltip term={term as any} underline={false}>{label}</TermTooltip>
-                  : label;
                 return (
                   <Link key={href} href={href}
                     className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all"
@@ -96,7 +92,7 @@ export const Sidebar = () => {
                       border: active ? '1px solid rgba(0,212,255,0.2)' : '1px solid transparent',
                     }}>
                     <Icon size={14} weight={active ? 'fill' : 'regular'} />
-                    {labelNode}
+                    {label}
                   </Link>
                 );
               })}

@@ -53,16 +53,17 @@ function SortIcon({ col, sortBy, sortOrder }: { col: SortCol; sortBy: SortCol; s
 
 function VulnerabilitiesContent() {
   const searchParams = useSearchParams();
-  const [keyword,   setKeyword]   = useState('');
-  const [severity,  setSeverity]  = useState(searchParams.get('severity') || '');
-  const [kevOnly,   setKevOnly]   = useState(false);
-  const [dateFrom,  setDateFrom]  = useState('');
-  const [dateTo,    setDateTo]    = useState('');
+  const [keyword,   setKeyword]   = useState(searchParams.get('keyword') || '');
+  const [severity,  setSeverity]  = useState((searchParams.get('severity') || '').toUpperCase());
+  const [vendor,    setVendor]    = useState(searchParams.get('vendor') || '');
+  const [kevOnly,   setKevOnly]   = useState(searchParams.get('kev') === 'true');
+  const [dateFrom,  setDateFrom]  = useState(searchParams.get('dateFrom') || '');
+  const [dateTo,    setDateTo]    = useState(searchParams.get('dateTo') || '');
   const [limit,     setLimit]     = useState(20);
   const [page,      setPage]      = useState(1);
-  const [epssMin,   setEpssMin]   = useState('');
-  const [sortBy,    setSortBy]    = useState<SortCol>('publishedAt');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [epssMin,   setEpssMin]   = useState(searchParams.get('epss') || '');
+  const [sortBy,    setSortBy]    = useState<SortCol>((searchParams.get('sort') as SortCol) || 'publishedAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(searchParams.get('order') === 'asc' ? 'asc' : 'desc');
   const [results,   setResults]   = useState<SearchResult | null>(null);
   const [loading,   setLoading]   = useState(false);
   const [apiError,  setApiError]  = useState('');
@@ -176,11 +177,12 @@ function VulnerabilitiesContent() {
   }, [rowLang, patchVulns]);
 
   const doSearch = useCallback((pg = 1, opts?: {
-    kw?: string; sv?: string; kev?: boolean; from?: string; to?: string; lim?: number;
+    kw?: string; sv?: string; vd?: string; kev?: boolean; from?: string; to?: string; lim?: number;
     sort?: SortCol; order?: 'asc' | 'desc'; epss?: string;
   }) => {
     const kw    = opts?.kw    !== undefined ? opts.kw    : keyword;
     const sv    = opts?.sv    !== undefined ? opts.sv    : severity;
+    const vd    = opts?.vd    !== undefined ? opts.vd    : vendor;
     const kev   = opts?.kev   !== undefined ? opts.kev   : kevOnly;
     const from  = opts?.from  !== undefined ? opts.from  : dateFrom;
     const to    = opts?.to    !== undefined ? opts.to    : dateTo;
@@ -193,6 +195,7 @@ function VulnerabilitiesContent() {
     const p = new URLSearchParams();
     if (kw)   p.set('keyword',  kw);
     if (sv)   p.set('severity', sv);
+    if (vd)   p.set('vendor',   vd);
     if (kev)  p.set('kev',      'true');
     if (from) p.set('dateFrom', from);
     if (to)   p.set('dateTo',   to);
@@ -216,7 +219,7 @@ function VulnerabilitiesContent() {
         setLoading(false);
       })
       .catch((e) => { setApiError(e.message); setLoading(false); });
-  }, [keyword, severity, kevOnly, dateFrom, dateTo, limit, sortBy, sortOrder, epssMin]);
+  }, [keyword, severity, vendor, kevOnly, dateFrom, dateTo, limit, sortBy, sortOrder, epssMin]);
 
   // 초기 로드
   useEffect(() => { doSearch(1); }, []);
@@ -229,9 +232,9 @@ function VulnerabilitiesContent() {
   };
 
   const handleReset = () => {
-    setSeverity(''); setKevOnly(false); setKeyword(''); setDateFrom(''); setDateTo('');
+    setSeverity(''); setVendor(''); setKevOnly(false); setKeyword(''); setDateFrom(''); setDateTo('');
     setEpssMin(''); setSortBy('publishedAt'); setSortOrder('desc');
-    doSearch(1, { kw: '', sv: '', kev: false, from: '', to: '', epss: '', sort: 'publishedAt', order: 'desc' });
+    doSearch(1, { kw: '', sv: '', vd: '', kev: false, from: '', to: '', epss: '', sort: 'publishedAt', order: 'desc' });
   };
 
   const toggleSort = (col: SortCol) => {
@@ -246,7 +249,7 @@ function VulnerabilitiesContent() {
     }
   };
 
-  const hasFilters = keyword || severity || kevOnly || dateFrom || dateTo || epssMin;
+  const hasFilters = keyword || severity || vendor || kevOnly || dateFrom || dateTo || epssMin;
 
   const thStyle = (col: SortCol): React.CSSProperties => ({
     cursor: 'pointer',
@@ -354,7 +357,9 @@ function VulnerabilitiesContent() {
 
           {/* EPSS Min */}
           <div>
-            <p className="text-xs mb-1.5 uppercase tracking-widest" style={{ fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 700, color: 'var(--text-muted)' }}>EPSS ≥</p>
+            <p className="text-xs mb-1.5 uppercase tracking-widest" style={{ fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 700, color: 'var(--text-muted)' }}>
+              <Tooltip content="EPSS(악용 가능성 확률) 최소값. 예) 50 = 향후 30일 내 악용 확률 50% 이상만 표시">EPSS ≥</Tooltip>
+            </p>
             <div className="flex items-center gap-1">
               <input
                 type="number" value={epssMin} min={0} max={100} step={0.1}
@@ -364,6 +369,31 @@ function VulnerabilitiesContent() {
                 style={{ fontFamily: 'JetBrains Mono, monospace', background: 'var(--elevated)', border: '1px solid var(--border-dim)', color: 'var(--text-secondary)' }}
               />
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>%</span>
+            </div>
+          </div>
+
+          {/* Vendor */}
+          <div>
+            <p className="text-xs mb-1.5 uppercase tracking-widest" style={{ fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 700, color: 'var(--text-muted)' }}>
+              <Tooltip content="CPE 매핑 기반 벤더(제조사) 필터. 통계 분석의 벤더 그래프를 클릭하면 자동으로 채워집니다.">벤더</Tooltip>
+            </p>
+            <div className="relative">
+              <input
+                type="text" value={vendor}
+                onChange={(e) => setVendor(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && doSearch(1)}
+                placeholder="google, microsoft..."
+                className="w-40 pl-3 pr-7 py-1.5 text-xs rounded-lg"
+                style={{ fontFamily: 'JetBrains Mono, monospace', background: 'var(--elevated)', border: `1px solid ${vendor ? 'rgba(0,212,255,0.4)' : 'var(--border-dim)'}`, color: vendor ? 'var(--cyan)' : 'var(--text-secondary)' }}
+              />
+              {vendor && (
+                <button onClick={() => { setVendor(''); doSearch(1, { vd: '' }); }}
+                  title="벤더 필터 제거"
+                  className="absolute right-2 top-1/2 -translate-y-1/2"
+                  style={{ color: 'var(--text-muted)' }}>
+                  <X size={12} />
+                </button>
+              )}
             </div>
           </div>
         </div>

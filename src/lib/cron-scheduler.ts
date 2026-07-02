@@ -5,9 +5,35 @@
 import cron, { ScheduledTask } from 'node-cron';
 import { prisma } from '@/lib/prisma';
 import { runCollector } from '@/lib/scheduler';
+import { log } from '@/lib/logger';
 
 let initialized = false;
 const activeTasks: ScheduledTask[] = [];
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * DB 예열용 하트비트.
+ * 폐쇄망에서 오래 idle 후 첫 요청이 느려지는 것을 줄이기 위해
+ * 5분마다 DB에 가벼운 쿼리를 보내 커넥션을 살려두고, 지연시간을 로그로 남긴다.
+ */
+function startHeartbeat() {
+  if (heartbeatTimer) return;
+  const run = async () => {
+    const t0 = Date.now();
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      const ms = Date.now() - t0;
+      // DB 응답이 느리면 경고로 승격 (idle 후 재연결 지연 감지)
+      if (ms > 1000) log.warn('HEARTBEAT', `DB 응답 지연 ${ms}ms — idle 재연결 가능성`);
+      else log.debug('HEARTBEAT', `alive · DB ${ms}ms`);
+    } catch (e: any) {
+      log.error('HEARTBEAT', `DB 확인 실패: ${e.message}`);
+    }
+  };
+  heartbeatTimer = setInterval(run, 5 * 60 * 1000);
+  void run(); // 시작 직후 1회
+  log.info('Scheduler', '하트비트 시작 (5분 간격 DB 예열)');
+}
 
 /** DB에서 스케줄 설정 읽기 (없으면 기본값) */
 async function getScheduleConfig(): Promise<Record<string, string>> {
@@ -35,9 +61,12 @@ export async function startScheduler() {
   if (initialized) return;
   initialized = true;
 
+  // 하트비트는 수집 스케줄과 무관하게 항상 동작 (DB 예열 목적)
+  startHeartbeat();
+
   const cfg = await getScheduleConfig();
   if (cfg.SCHEDULE_ENABLED !== 'true') {
-    console.log('[Scheduler] Auto-collection disabled');
+    log.info('Scheduler', '자동 수집 비활성화 (하트비트만 동작)');
     return;
   }
 
