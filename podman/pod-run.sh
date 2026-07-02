@@ -13,7 +13,7 @@
 set -e
 
 POD_NAME="vuln-portal"
-APP_IMAGE="vuln-portal-app:v1.4.6"
+APP_IMAGE="vuln-portal-app:v1.4.7"
 PG_IMAGE="postgres:16-alpine"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
