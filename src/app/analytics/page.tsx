@@ -217,7 +217,7 @@ export default function AnalyticsPage() {
           {loading ? (
             <div className="skeleton w-full h-full rounded-xl" />
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 300, height: 200 }}>
               <AreaChart data={data?.daily ?? []} margin={{ top: 5, right: 10, bottom: 0, left: -10 }}
                 style={{ cursor: 'pointer' }}
                 onClick={(e: any) => { const day = e?.activeLabel; if (day) goToVulns({ dateFrom: day, dateTo: day }, { withRange: false }); }}>
@@ -247,7 +247,7 @@ export default function AnalyticsPage() {
           {loading ? <div className="skeleton h-52 w-full rounded-xl" /> : (
             <div className="flex items-center gap-6">
               <div style={{ width: 160, height: 160, flexShrink: 0 }}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 300, height: 200 }}>
                   <PieChart>
                     <Pie data={data?.severity ?? []} dataKey="count" nameKey="severity"
                       cx="50%" cy="50%" innerRadius={45} outerRadius={72} paddingAngle={2}
@@ -285,7 +285,7 @@ export default function AnalyticsPage() {
         {/* 공격 벡터 */}
         <SectionCard title="공격 벡터 분포" sub={`CVSS v3.1 Attack Vector · 최근 ${range}일 · 막대 클릭 시 목록`} icon={<ShieldWarning size={15} weight="fill" />} accent="var(--red)">
           {loading ? <div className="skeleton h-52 w-full rounded-xl" /> : (
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={200} initialDimension={{ width: 400, height: 200 }}>
               <BarChart data={data?.attackVector ?? []} layout="vertical" margin={{ left: 0, right: 30 }}>
                 <XAxis type="number" tick={{ fontSize: 10, fill: '#666', fontFamily: 'JetBrains Mono' }} />
                 <YAxis type="category" dataKey="attack_vector" width={110}
@@ -306,7 +306,7 @@ export default function AnalyticsPage() {
       {/* 상위 벤더 */}
       <SectionCard title="벤더별 취약점 수 (Top 15)" sub={`CPE 매핑 기반 · 최근 ${range}일 · 막대 클릭 시 해당 벤더 목록`} icon={<ChartBar size={15} weight="fill" />} accent="var(--cyan)">
         {loading ? <div className="skeleton h-64 w-full rounded-xl" /> : (
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={260} initialDimension={{ width: 800, height: 260 }}>
             <BarChart data={data?.topVendors ?? []} margin={{ top: 0, right: 10, bottom: 60, left: -10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
               <XAxis dataKey="vendor" tick={{ fontSize: 10, fill: '#888', fontFamily: 'JetBrains Mono' }}
@@ -326,7 +326,7 @@ export default function AnalyticsPage() {
         {/* KEV 월별 추이 */}
         <SectionCard title={<><TermTooltip term="KEV">KEV</TermTooltip> 월별 신규 등재 추이</>} sub="CISA KEV 기준 · 클릭 시 KEV 목록" icon={<ShieldWarning size={15} weight="fill" />} accent="var(--red)">
           {loading ? <div className="skeleton h-52 w-full rounded-xl" /> : (
-            <ResponsiveContainer width="100%" height={200}>
+            <ResponsiveContainer width="100%" height={200} initialDimension={{ width: 400, height: 200 }}>
               <BarChart data={data?.kevMonthly ?? []} margin={{ top: 5, right: 10, bottom: 20, left: -10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                 <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#888', fontFamily: 'JetBrains Mono' }}
@@ -373,7 +373,7 @@ export default function AnalyticsPage() {
       {/* CWE Top 10 */}
       <SectionCard title={<><TermTooltip term="CWE">CWE</TermTooltip> 취약점 유형 Top 10</>} sub={`최근 ${range}일 · 막대 클릭 시 해당 CWE 목록`} icon={<ChartBar size={15} weight="fill" />} accent="var(--yellow)">
         {loading ? <div className="skeleton h-64 w-full rounded-xl" /> : (
-          <ResponsiveContainer width="100%" height={250}>
+          <ResponsiveContainer width="100%" height={250} initialDimension={{ width: 600, height: 250 }}>
             <BarChart data={data?.cwe ?? []} layout="vertical" margin={{ left: 10, right: 60, top: 0, bottom: 0 }}>
               <XAxis type="number" tick={{ fontSize: 10, fill: '#666', fontFamily: 'JetBrains Mono' }} />
               <YAxis type="category" dataKey="cwe_id" width={100}
