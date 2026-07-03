@@ -56,6 +56,8 @@ function VulnerabilitiesContent() {
   const [keyword,   setKeyword]   = useState(searchParams.get('keyword') || '');
   const [severity,  setSeverity]  = useState((searchParams.get('severity') || '').toUpperCase());
   const [vendor,    setVendor]    = useState(searchParams.get('vendor') || '');
+  const [cwe,       setCwe]       = useState(searchParams.get('cwe') || '');
+  const [attackVector, setAttackVector] = useState((searchParams.get('attackVector') || '').toUpperCase());
   const [kevOnly,   setKevOnly]   = useState(searchParams.get('kev') === 'true');
   const [dateFrom,  setDateFrom]  = useState(searchParams.get('dateFrom') || '');
   const [dateTo,    setDateTo]    = useState(searchParams.get('dateTo') || '');
@@ -177,12 +179,14 @@ function VulnerabilitiesContent() {
   }, [rowLang, patchVulns]);
 
   const doSearch = useCallback((pg = 1, opts?: {
-    kw?: string; sv?: string; vd?: string; kev?: boolean; from?: string; to?: string; lim?: number;
+    kw?: string; sv?: string; vd?: string; cw?: string; av?: string; kev?: boolean; from?: string; to?: string; lim?: number;
     sort?: SortCol; order?: 'asc' | 'desc'; epss?: string;
   }) => {
     const kw    = opts?.kw    !== undefined ? opts.kw    : keyword;
     const sv    = opts?.sv    !== undefined ? opts.sv    : severity;
     const vd    = opts?.vd    !== undefined ? opts.vd    : vendor;
+    const cw    = opts?.cw    !== undefined ? opts.cw    : cwe;
+    const av    = opts?.av    !== undefined ? opts.av    : attackVector;
     const kev   = opts?.kev   !== undefined ? opts.kev   : kevOnly;
     const from  = opts?.from  !== undefined ? opts.from  : dateFrom;
     const to    = opts?.to    !== undefined ? opts.to    : dateTo;
@@ -196,6 +200,8 @@ function VulnerabilitiesContent() {
     if (kw)   p.set('keyword',  kw);
     if (sv)   p.set('severity', sv);
     if (vd)   p.set('vendor',   vd);
+    if (cw)   p.set('cwe',      cw);
+    if (av)   p.set('attackVector', av);
     if (kev)  p.set('kev',      'true');
     if (from) p.set('dateFrom', from);
     if (to)   p.set('dateTo',   to);
@@ -219,7 +225,7 @@ function VulnerabilitiesContent() {
         setLoading(false);
       })
       .catch((e) => { setApiError(e.message); setLoading(false); });
-  }, [keyword, severity, vendor, kevOnly, dateFrom, dateTo, limit, sortBy, sortOrder, epssMin]);
+  }, [keyword, severity, vendor, cwe, attackVector, kevOnly, dateFrom, dateTo, limit, sortBy, sortOrder, epssMin]);
 
   // 초기 로드
   useEffect(() => { doSearch(1); }, []);
@@ -232,9 +238,9 @@ function VulnerabilitiesContent() {
   };
 
   const handleReset = () => {
-    setSeverity(''); setVendor(''); setKevOnly(false); setKeyword(''); setDateFrom(''); setDateTo('');
+    setSeverity(''); setVendor(''); setCwe(''); setAttackVector(''); setKevOnly(false); setKeyword(''); setDateFrom(''); setDateTo('');
     setEpssMin(''); setSortBy('publishedAt'); setSortOrder('desc');
-    doSearch(1, { kw: '', sv: '', vd: '', kev: false, from: '', to: '', epss: '', sort: 'publishedAt', order: 'desc' });
+    doSearch(1, { kw: '', sv: '', vd: '', cw: '', av: '', kev: false, from: '', to: '', epss: '', sort: 'publishedAt', order: 'desc' });
   };
 
   const toggleSort = (col: SortCol) => {
@@ -249,7 +255,7 @@ function VulnerabilitiesContent() {
     }
   };
 
-  const hasFilters = keyword || severity || vendor || kevOnly || dateFrom || dateTo || epssMin;
+  const hasFilters = keyword || severity || vendor || cwe || attackVector || kevOnly || dateFrom || dateTo || epssMin;
 
   const thStyle = (col: SortCol): React.CSSProperties => ({
     cursor: 'pointer',
@@ -396,6 +402,29 @@ function VulnerabilitiesContent() {
               )}
             </div>
           </div>
+
+          {/* CWE / 공격벡터 필터 칩 (통계 차트에서 넘어옴) */}
+          {(cwe || attackVector) && (
+            <div>
+              <p className="text-xs mb-1.5 uppercase tracking-widest" style={{ fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 700, color: 'var(--text-muted)' }}>추가 필터</p>
+              <div className="flex items-center gap-1.5 flex-wrap" style={{ minHeight: '30px' }}>
+                {cwe && (
+                  <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+                    style={{ background: 'rgba(245,197,24,0.12)', color: 'var(--yellow)', border: '1px solid rgba(245,197,24,0.3)', fontFamily: 'JetBrains Mono, monospace' }}>
+                    CWE: {cwe}
+                    <button onClick={() => { setCwe(''); doSearch(1, { cw: '' }); }} title="CWE 필터 제거"><X size={11} /></button>
+                  </span>
+                )}
+                {attackVector && (
+                  <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+                    style={{ background: 'rgba(255,59,59,0.12)', color: 'var(--red)', border: '1px solid rgba(255,59,59,0.3)', fontFamily: 'JetBrains Mono, monospace' }}>
+                    공격벡터: {attackVector}
+                    <button onClick={() => { setAttackVector(''); doSearch(1, { av: '' }); }} title="공격벡터 필터 제거"><X size={11} /></button>
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Row 2: Date range + Per-page + Actions */}

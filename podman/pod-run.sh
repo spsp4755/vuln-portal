@@ -13,7 +13,7 @@
 set -e
 
 POD_NAME="vuln-portal"
-APP_IMAGE="vuln-portal-app:v1.4.9"
+APP_IMAGE="vuln-portal-app:v1.4.10"
 PG_IMAGE="postgres:16-alpine"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -122,6 +122,7 @@ podman run -d \
   --env OPENAI_BASE_URL="$OPENAI_BASE_URL" \
   --env OPENAI_API_KEY="$OPENAI_API_KEY" \
   --env OPENAI_MODEL="$OPENAI_MODEL" \
+  --log-driver k8s-file --log-opt max-size=20mb \
   --restart=always \
   "$APP_IMAGE"
 

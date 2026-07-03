@@ -18,7 +18,7 @@ export async function GET() {
     const [total, kevCount, severityCounts, recent7Days, eolExpired, eolSoon, recentKev7Days, highEpss, lastCollections] = await Promise.all([
       prisma.vulnerability.count(),
       prisma.vulnerability.count({ where: { isKev: true } }),
-      prisma.cvssScore.groupBy({ by: ['baseSeverity'], _count: { baseSeverity: true } }),
+      prisma.cvssScore.groupBy({ by: ['baseSeverity'], where: { version: '3.1' }, _count: { baseSeverity: true } }),
       prisma.vulnerability.count({
         where: { publishedAt: { gte: since7 } },
       }),

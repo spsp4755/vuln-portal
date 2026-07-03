@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
         SELECT cs."attack_vector", COUNT(*) AS count
         FROM cvss_score cs
         JOIN vulnerability v ON v.id = cs."vulnerability_id"
-        WHERE cs.version IN ('3.1', '3.0')
+        WHERE cs.version = '3.1'
           AND cs."attack_vector" IS NOT NULL
           AND v."published_at" >= ${since}
         GROUP BY cs."attack_vector" ORDER BY count DESC

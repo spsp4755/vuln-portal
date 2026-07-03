@@ -12,6 +12,8 @@ export async function GET(req: Request) {
     const keyword  = searchParams.get('keyword')  || '';
     const vendor   = searchParams.get('vendor')   || '';
     const product  = searchParams.get('product')  || '';
+    const cwe      = searchParams.get('cwe')      || '';
+    const attackVector = searchParams.get('attackVector')?.toUpperCase() || '';
     const kevOnly  = searchParams.get('kev') === 'true';
     const dateFrom = searchParams.get('dateFrom') || '';
     const dateTo   = searchParams.get('dateTo')   || '';
@@ -21,7 +23,16 @@ export async function GET(req: Request) {
 
     const where: any = {};
 
-    if (severity) where.cvssScores = { some: { baseSeverity: severity } };
+    // 심각도/공격벡터는 화면에 표시되는 대표 점수(v3.1)와 일치시킨다.
+    // (한 CVE가 v3.1/v3.0/v2 여러 점수를 가질 때 다른 버전이 매칭돼 표시와 어긋나는 문제 방지)
+    const cvssSome: any = {};
+    if (severity)     cvssSome.baseSeverity = severity;
+    if (attackVector) cvssSome.attackVector = attackVector;
+    if (Object.keys(cvssSome).length) {
+      cvssSome.version = '3.1';
+      where.cvssScores = { some: cvssSome };
+    }
+
     if (keyword) {
       where.OR = [
         { cveId: { contains: keyword, mode: 'insensitive' } },
@@ -32,15 +43,18 @@ export async function GET(req: Request) {
         { cweWeaknesses: { some: { cweId: { contains: keyword, mode: 'insensitive' } } } },
       ];
     }
-    if (vendor)  where.cpeMappings = { some: { vendor:  { contains: vendor,  mode: 'insensitive' } } };
-    if (product) where.cpeMappings = { some: { product: { contains: product, mode: 'insensitive' } } };
+    // 벤더/제품은 통계 그래프의 정확한 값과 매칭되도록 완전 일치(대소문자 무시)
+    if (vendor)  where.cpeMappings = { some: { vendor:  { equals: vendor,  mode: 'insensitive' } } };
+    if (product) where.cpeMappings = { some: { product: { equals: product, mode: 'insensitive' } } };
+    if (cwe)     where.cweWeaknesses = { some: { cweId: { equals: cwe } } };
     if (kevOnly) where.isKev = true;
     if (epssMin > 0) where.epssScore = { score: { gte: epssMin } };
 
     if (dateFrom || dateTo) {
       where.publishedAt = {};
-      if (dateFrom) where.publishedAt.gte = new Date(dateFrom);
-      if (dateTo)   where.publishedAt.lte = new Date(dateTo);
+      if (dateFrom) where.publishedAt.gte = new Date(`${dateFrom}T00:00:00.000Z`);
+      // dateTo는 해당 날짜의 끝까지 포함 (하루만 선택해도 그날 데이터가 나오도록)
+      if (dateTo)   where.publishedAt.lte = new Date(`${dateTo}T23:59:59.999Z`);
     }
 
     // DB-level orderBy: only publishedAt and modifiedAt are supported directly
