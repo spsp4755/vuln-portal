@@ -20,6 +20,13 @@ model Vulnerability {
   isKev            Boolean       @default(false) @map("is_kev")
   collectedAt      DateTime      @default(now()) @map("collected_at")
 
+  // 대표 CVSS 점수 — 보유한 버전 중 최신 우선(v4.0 > v3.1 > v3.0 > v2).
+  // 화면 배지·통계 차트·목록 필터가 모두 이 값을 기준으로 동작하도록 비정규화.
+  primaryCvssVersion  String?  @map("primary_cvss_version")
+  primarySeverity     String?  @map("primary_severity")
+  primaryScore        Decimal? @map("primary_score")
+  primaryAttackVector String?  @map("primary_attack_vector")
+
   cvssScores       CvssScore[]
   epssScore        EpssScore?
   cpeMappings      CpeMapping[]
@@ -31,6 +38,8 @@ model Vulnerability {
   @@index([publishedAt])
   @@index([modifiedAt])
   @@index([isKev])
+  @@index([primarySeverity])
+  @@index([primaryScore])
   @@map("vulnerability")
 }
 

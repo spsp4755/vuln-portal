@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { getConfig } from '@/lib/config';
+import { pickPrimaryCvss } from '@/lib/cvss';
 
 interface NvdApiResponse {
   vulnerabilities?: NvdVulnerability[];
@@ -168,6 +169,7 @@ export async function collectNvd(daysBack: number = 30, signal?: AbortSignal) {
         ['3.1', cve.metrics?.cvssMetricV31?.[0]],
         ['4.0', cve.metrics?.cvssMetricV40?.[0]],
       ];
+      const savedCvss: { version: string; baseScore: number; baseSeverity: string; attackVector: string | null }[] = [];
       for (const [version, metric] of cvssVersions) {
         if (!metric?.cvssData) continue;
         const d = metric.cvssData;
@@ -188,7 +190,20 @@ export async function collectNvd(daysBack: number = 30, signal?: AbortSignal) {
           create: { vulnerabilityId: vulnRecord.id, version, ...fields },
           update: fields,
         });
+        savedCvss.push({ version, baseScore: d.baseScore, baseSeverity: fields.baseSeverity, attackVector: fields.attackVector });
       }
+
+      // 대표 CVSS(최신 버전 우선)를 취약점 행에 비정규화 저장 — 화면·차트·필터 공통 기준
+      const primary = pickPrimaryCvss(savedCvss);
+      await prisma.vulnerability.update({
+        where: { id: vulnRecord.id },
+        data: {
+          primaryCvssVersion:  primary?.version ?? null,
+          primarySeverity:     primary?.baseSeverity ?? null,
+          primaryScore:        primary?.baseScore ?? null,
+          primaryAttackVector: primary?.attackVector ?? null,
+        },
+      });
 
       // CPE mappings (버전 범위 포함)
       if (cve.configurations) {

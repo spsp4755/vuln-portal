@@ -23,15 +23,10 @@ export async function GET(req: Request) {
 
     const where: any = {};
 
-    // 심각도/공격벡터는 화면에 표시되는 대표 점수(v3.1)와 일치시킨다.
-    // (한 CVE가 v3.1/v3.0/v2 여러 점수를 가질 때 다른 버전이 매칭돼 표시와 어긋나는 문제 방지)
-    const cvssSome: any = {};
-    if (severity)     cvssSome.baseSeverity = severity;
-    if (attackVector) cvssSome.attackVector = attackVector;
-    if (Object.keys(cvssSome).length) {
-      cvssSome.version = '3.1';
-      where.cvssScores = { some: cvssSome };
-    }
+    // 심각도/공격벡터는 화면에 표시되는 "대표 점수"(최신 버전 우선: v4.0>v3.1>v3.0>v2)와 일치시킨다.
+    // 대표 점수를 vulnerability 행에 비정규화해 두었으므로 그 값으로 직접 필터한다.
+    if (severity)     where.primarySeverity = severity;
+    if (attackVector) where.primaryAttackVector = attackVector;
 
     if (keyword) {
       where.OR = [
@@ -57,22 +52,19 @@ export async function GET(req: Request) {
       if (dateTo)   where.publishedAt.lte = new Date(`${dateTo}T23:59:59.999Z`);
     }
 
-    // DB-level orderBy: only publishedAt and modifiedAt are supported directly
-    const useJsSort = sortBy === 'cvssScore' || sortBy === 'epssScore';
+    // 정렬 — 대표 점수(primaryScore)와 EPSS는 DB 레벨에서 정렬 (비정규화 컬럼/관계 정렬 활용)
     let orderBy: any;
-    if (sortBy === 'modifiedAt') {
-      orderBy = { modifiedAt: sortOrder };
-    } else {
-      // publishedAt (default), or JS sort fallback
-      orderBy = { publishedAt: useJsSort ? 'desc' : sortOrder };
-    }
+    if (sortBy === 'modifiedAt')      orderBy = { modifiedAt: sortOrder };
+    else if (sortBy === 'cvssScore')  orderBy = { primaryScore: { sort: sortOrder, nulls: 'last' } };
+    else if (sortBy === 'epssScore')  orderBy = { epssScore: { score: sortOrder } };
+    else                              orderBy = { publishedAt: sortOrder };
 
-    const [total, vulnsRaw] = await Promise.all([
+    const [total, vulns] = await Promise.all([
       prisma.vulnerability.count({ where }),
       prisma.vulnerability.findMany({
         where,
-        skip:  useJsSort ? 0 : (page - 1) * limit,
-        take:  useJsSort ? undefined : limit,
+        skip:  (page - 1) * limit,
+        take:  limit,
         orderBy,
         include: {
           cvssScores:     { orderBy: { version: 'desc' } },
@@ -84,26 +76,6 @@ export async function GET(req: Request) {
         },
       }),
     ]);
-
-    let vulns = vulnsRaw;
-
-    // JS-level sort for cvssScore / epssScore
-    if (useJsSort) {
-      vulns = [...vulnsRaw].sort((a, b) => {
-        let va: number;
-        let vb: number;
-        if (sortBy === 'cvssScore') {
-          va = Number(a.cvssScores[0]?.baseScore ?? -1);
-          vb = Number(b.cvssScores[0]?.baseScore ?? -1);
-        } else {
-          va = Number((a.epssScore as any)?.score ?? -1);
-          vb = Number((b.epssScore as any)?.score ?? -1);
-        }
-        return sortOrder === 'asc' ? va - vb : vb - va;
-      });
-      // Apply pagination after sort
-      vulns = vulns.slice((page - 1) * limit, page * limit);
-    }
 
     return NextResponse.json({
       vulns,

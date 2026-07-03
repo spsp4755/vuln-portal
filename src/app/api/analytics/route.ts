@@ -39,12 +39,11 @@ export async function GET(req: NextRequest) {
         GROUP BY day ORDER BY day ASC
       `,
 
-      // 2. 심각도 분포 — range 내 CVE만
+      // 2. 심각도 분포 — 대표 점수(최신 버전) 기준, range 내 CVE만
       prisma.$queryRaw<{ severity: string; count: bigint }[]>`
-        SELECT cs."base_severity" AS severity, COUNT(*) AS count
-        FROM cvss_score cs
-        JOIN vulnerability v ON v.id = cs."vulnerability_id"
-        WHERE cs.version = '3.1'
+        SELECT v."primary_severity" AS severity, COUNT(*) AS count
+        FROM vulnerability v
+        WHERE v."primary_severity" IS NOT NULL
           AND v."published_at" >= ${since}
         GROUP BY severity
       `,
@@ -87,31 +86,28 @@ export async function GET(req: NextRequest) {
         GROUP BY month ORDER BY month ASC
       `,
 
-      // 7. CVSS 점수 구간 — range 내 CVE만
+      // 7. CVSS 점수 구간 — 대표 점수 기준, range 내 CVE만
       prisma.$queryRaw<{ bucket: string; count: bigint }[]>`
         SELECT
           CASE
-            WHEN cs."base_score" < 4.0 THEN '0-3.9 (LOW)'
-            WHEN cs."base_score" < 7.0 THEN '4.0-6.9 (MEDIUM)'
-            WHEN cs."base_score" < 9.0 THEN '7.0-8.9 (HIGH)'
+            WHEN v."primary_score" < 4.0 THEN '0-3.9 (LOW)'
+            WHEN v."primary_score" < 7.0 THEN '4.0-6.9 (MEDIUM)'
+            WHEN v."primary_score" < 9.0 THEN '7.0-8.9 (HIGH)'
             ELSE '9.0-10 (CRITICAL)'
           END AS bucket,
           COUNT(*) AS count
-        FROM cvss_score cs
-        JOIN vulnerability v ON v.id = cs."vulnerability_id"
-        WHERE cs.version = '3.1' AND v."published_at" >= ${since}
+        FROM vulnerability v
+        WHERE v."primary_score" IS NOT NULL AND v."published_at" >= ${since}
         GROUP BY bucket ORDER BY bucket ASC
       `,
 
-      // 8. 공격 벡터 — range 내 CVE만
+      // 8. 공격 벡터 — 대표 점수 기준, range 내 CVE만
       prisma.$queryRaw<{ attack_vector: string; count: bigint }[]>`
-        SELECT cs."attack_vector", COUNT(*) AS count
-        FROM cvss_score cs
-        JOIN vulnerability v ON v.id = cs."vulnerability_id"
-        WHERE cs.version = '3.1'
-          AND cs."attack_vector" IS NOT NULL
+        SELECT v."primary_attack_vector" AS attack_vector, COUNT(*) AS count
+        FROM vulnerability v
+        WHERE v."primary_attack_vector" IS NOT NULL
           AND v."published_at" >= ${since}
-        GROUP BY cs."attack_vector" ORDER BY count DESC
+        GROUP BY v."primary_attack_vector" ORDER BY count DESC
       `,
 
       // 9. 전체 통계 (누적)
@@ -122,16 +118,15 @@ export async function GET(req: NextRequest) {
       // 9d. range 내 KEV
       prisma.vulnerability.count({ where: { isKev: true, publishedAt: { gte: since } } }),
 
-      // 평균 CVSS 전체
+      // 평균 CVSS 전체 — 대표 점수 기준
       prisma.$queryRaw<{ avg: number | null }[]>`
-        SELECT AVG("base_score")::float AS avg FROM cvss_score WHERE version = '3.1'
+        SELECT AVG("primary_score")::float AS avg FROM vulnerability WHERE "primary_score" IS NOT NULL
       `,
       // 평균 CVSS range
       prisma.$queryRaw<{ avg: number | null }[]>`
-        SELECT AVG(cs."base_score")::float AS avg
-        FROM cvss_score cs
-        JOIN vulnerability v ON v.id = cs."vulnerability_id"
-        WHERE cs.version = '3.1' AND v."published_at" >= ${since}
+        SELECT AVG("primary_score")::float AS avg
+        FROM vulnerability
+        WHERE "primary_score" IS NOT NULL AND "published_at" >= ${since}
       `,
 
       // 10. EPSS 상위 10 — range 내 CVE만
@@ -143,12 +138,11 @@ export async function GET(req: NextRequest) {
           v."cve_id",
           e.score,
           e.percentile,
-          cs."base_severity" AS severity,
-          cs."base_score" AS cvss_score,
+          v."primary_severity" AS severity,
+          v."primary_score" AS cvss_score,
           v."published_at"
         FROM epss_score e
         JOIN vulnerability v ON v.id = e."vulnerability_id"
-        LEFT JOIN cvss_score cs ON cs."vulnerability_id" = v.id AND cs.version = '3.1'
         WHERE v."published_at" >= ${since}
         ORDER BY e.score DESC
         LIMIT 10

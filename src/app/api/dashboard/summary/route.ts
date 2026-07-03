@@ -18,7 +18,7 @@ export async function GET() {
     const [total, kevCount, severityCounts, recent7Days, eolExpired, eolSoon, recentKev7Days, highEpss, lastCollections] = await Promise.all([
       prisma.vulnerability.count(),
       prisma.vulnerability.count({ where: { isKev: true } }),
-      prisma.cvssScore.groupBy({ by: ['baseSeverity'], where: { version: '3.1' }, _count: { baseSeverity: true } }),
+      prisma.vulnerability.groupBy({ by: ['primarySeverity'], where: { primarySeverity: { not: null } }, _count: { primarySeverity: true } }),
       prisma.vulnerability.count({
         where: { publishedAt: { gte: since7 } },
       }),
@@ -48,7 +48,7 @@ export async function GET() {
     ]);
 
     const severityMap = Object.fromEntries(
-      severityCounts.map((s) => [s.baseSeverity, s._count.baseSeverity])
+      severityCounts.map((s) => [s.primarySeverity, s._count.primarySeverity])
     );
     const criticalCount = severityMap['CRITICAL'] || 0;
 
