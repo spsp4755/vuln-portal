@@ -10,6 +10,7 @@ function isNoise(pathname: string): boolean {
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/fonts/') ||
     pathname === '/favicon.ico' ||
+    pathname === '/api/health' || // keepalive 핑 — 로그 소음 방지
     /\.(?:woff2?|ttf|png|jpg|jpeg|svg|ico|css|js|map)$/.test(pathname)
   );
 }
