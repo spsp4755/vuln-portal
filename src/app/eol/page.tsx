@@ -31,7 +31,8 @@ export default function EolPage() {
   const [items, setItems] = useState<EolItem[]>([]);
   const [total, setTotal] = useState(0);
   const [category, setCategory] = useState('');
-  const [status, setStatus] = useState('due-soon');
+  const [status, setStatus] = useState('all');
+  const [eolBefore, setEolBefore] = useState(''); // 특정 날짜까지 EOL 예정 (커스텀)
   const [sortBy, setSortBy] = useState<SortField>('eolDate');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [loading, setLoading] = useState(true);
@@ -40,7 +41,8 @@ export default function EolPage() {
     setLoading(true);
     const p = new URLSearchParams();
     if (category) p.set('category', category);
-    p.set('status', status);
+    if (eolBefore) p.set('eolBefore', eolBefore); // 있으면 status보다 우선
+    else p.set('status', status);
     p.set('sort', sortBy);
     p.set('order', sortOrder);
     fetch(`/api/eol?${p}`)
@@ -51,7 +53,7 @@ export default function EolPage() {
       })
       .catch(() => { setItems([]); setTotal(0); })
       .finally(() => setLoading(false));
-  }, [category, status, sortBy, sortOrder]);
+  }, [category, status, eolBefore, sortBy, sortOrder]);
 
   function handleColumnSort(field: SortField) {
     if (sortBy === field) {
@@ -98,14 +100,35 @@ export default function EolPage() {
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
+            disabled={!!eolBefore}
+            title={eolBefore ? '날짜 필터 사용 중 — 상태 필터는 비활성화됩니다' : undefined}
             className="text-sm px-3 py-2 rounded-lg"
-            style={{ fontFamily: 'JetBrains Mono, monospace' }}
+            style={{ fontFamily: 'JetBrains Mono, monospace', opacity: eolBefore ? 0.4 : 1 }}
           >
             <option value="all">전체</option>
             <option value="due-soon">90일 내 EOL</option>
             <option value="active">Active</option>
-            <option value="eol">EOL</option>
+            <option value="eol">EOL(종료됨)</option>
           </select>
+
+          {/* 커스텀: 특정 날짜까지 지원 종료 예정 */}
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
+            style={{ background: eolBefore ? 'var(--cyan-dim)' : 'var(--border-dim)', border: `1px solid ${eolBefore ? 'rgba(0,212,255,0.3)' : 'transparent'}` }}>
+            <Tooltip content="선택한 날짜까지(지금부터) 지원이 종료되는 제품만 표시합니다. 예: 2027-12-31 → 그때까지 EOL 예정인 제품. 설정 시 위 상태 필터보다 우선합니다.">
+              <span className="text-xs whitespace-nowrap" style={{ fontFamily: 'JetBrains Mono, monospace', color: eolBefore ? 'var(--cyan)' : 'var(--text-muted)' }}>~까지 EOL</span>
+            </Tooltip>
+            <input
+              type="date"
+              value={eolBefore}
+              onChange={(e) => setEolBefore(e.target.value)}
+              className="text-xs px-1.5 py-1 rounded"
+              style={{ fontFamily: 'JetBrains Mono, monospace', background: 'var(--surface)', border: '1px solid var(--border-dim)', color: 'var(--text-secondary)' }}
+            />
+            {eolBefore && (
+              <button onClick={() => setEolBefore('')} title="날짜 필터 해제"
+                style={{ color: 'var(--text-muted)', lineHeight: 1 }}>✕</button>
+            )}
+          </div>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortField)}

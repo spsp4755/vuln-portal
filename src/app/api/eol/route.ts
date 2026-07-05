@@ -8,6 +8,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const category = searchParams.get('category');
   const eolStatus = searchParams.get('status');
+  const eolBefore = searchParams.get('eolBefore'); // YYYY-MM-DD: 이 날짜까지 지원 종료 예정
   const sort = searchParams.get('sort') || 'eolDate';
   const order = (searchParams.get('order') || 'asc') as 'asc' | 'desc';
 
@@ -24,7 +25,15 @@ export async function GET(req: Request) {
 
   if (category) where.category = category;
 
-  if (eolStatus === 'eol') {
+  // 커스텀 날짜가 있으면 우선: 지금부터 그 날짜까지 지원 종료 예정인 제품
+  const beforeDate = eolBefore && /^\d{4}-\d{2}-\d{2}$/.test(eolBefore)
+    ? new Date(`${eolBefore}T23:59:59.999Z`)
+    : null;
+
+  if (beforeDate) {
+    where.isEol = false;
+    where.eolDate = { gte: new Date(), lte: beforeDate };
+  } else if (eolStatus === 'eol') {
     where.isEol = true;
     where.eolDate = { gte: cutoffDate };
   } else if (eolStatus === 'active') {
