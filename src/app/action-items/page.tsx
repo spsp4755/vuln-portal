@@ -37,6 +37,7 @@ interface ActionData {
 interface KevFilters {
   severity: 'all' | 'CRITICAL' | 'HIGH';
   overdueOnly: boolean;
+  dueBefore: string;   // YYYY-MM-DD: 시정 기한이 이 날짜까지
   sort: 'due' | 'severity' | 'published';
   limit: number;
 }
@@ -44,6 +45,7 @@ interface KevFilters {
 interface EolFilters {
   status: 'all' | 'expired' | 'upcoming';
   days: number;
+  eolBefore: string;   // YYYY-MM-DD: 이 날짜까지 지원 종료 예정
   search: string;
   sort: 'date' | 'product';
 }
@@ -51,6 +53,7 @@ interface EolFilters {
 interface CvssFilters {
   minScore: number;
   days: number;
+  dateFrom: string;    // YYYY-MM-DD: 이 날짜 이후 공개
 }
 
 function urgencyStyle(daysLeft: number | null): { bg: string; color: string; label: string } {
@@ -108,6 +111,26 @@ function FilterSelect({ value, onChange, options, disabled }: {
   );
 }
 
+// 날짜 필터 (라벨 + date input + 해제)
+function FilterDate({ label, value, onChange, accent = 'var(--cyan)', title }: {
+  label: string; value: string; onChange: (v: string) => void; accent?: string; title?: string;
+}) {
+  return (
+    <div className="flex items-center gap-1 px-2 py-1 rounded-lg" title={title}
+      style={{ background: value ? `${accent}1a` : 'var(--elevated)', border: `1px solid ${value ? accent : 'var(--border-dim)'}` }}>
+      <span className="text-xs whitespace-nowrap" style={{ fontFamily: 'JetBrains Mono, monospace', color: value ? accent : 'var(--text-muted)' }}>{label}</span>
+      <input type="date" value={value} onChange={(e) => onChange(e.target.value)}
+        className="text-xs rounded px-1"
+        style={{ fontFamily: 'JetBrains Mono, monospace', background: 'var(--surface)', border: '1px solid var(--border-dim)', color: 'var(--text-secondary)' }} />
+      {value && (
+        <button onClick={() => onChange('')} title="날짜 필터 해제" style={{ color: 'var(--text-muted)', lineHeight: 1 }}>
+          <X size={11} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 function FilterToggle({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button onClick={onClick}
@@ -128,12 +151,12 @@ export default function ActionItemsPage() {
   const [loading, setLoading] = useState(true);
 
   const [kevFilters, setKevFilters] = useState<KevFilters>({
-    severity: 'all', overdueOnly: false, sort: 'due', limit: 30,
+    severity: 'all', overdueOnly: false, dueBefore: '', sort: 'due', limit: 30,
   });
   const [eolFilters, setEolFilters] = useState<EolFilters>({
-    status: 'all', days: 90, search: '', sort: 'date',
+    status: 'all', days: 90, eolBefore: '', search: '', sort: 'date',
   });
-  const [cvssFilters, setCvssFilters] = useState<CvssFilters>({ minScore: 9.0, days: 7 });
+  const [cvssFilters, setCvssFilters] = useState<CvssFilters>({ minScore: 9.0, days: 7, dateFrom: '' });
 
   const eolSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [eolSearchInput, setEolSearchInput] = useState('');
@@ -143,14 +166,17 @@ export default function ActionItemsPage() {
     const p = new URLSearchParams({
       kevSeverity: kf.severity,
       kevOverdue:  kf.overdueOnly ? '1' : '0',
+      kevDueBefore: kf.dueBefore,
       kevSort:     kf.sort,
       kevLimit:    String(kf.limit),
       eolStatus:   ef.status,
       eolDays:     String(ef.days),
+      eolBefore:   ef.eolBefore,
       eolSearch:   ef.search,
       eolSort:     ef.sort,
       cvssMin:     String(cf.minScore),
       cvssDays:    String(cf.days),
+      cvssDateFrom: cf.dateFrom,
     });
     fetch(`/api/dashboard/action-items?${p}`)
       .then((r) => r.json())
@@ -194,9 +220,9 @@ export default function ActionItemsPage() {
   };
 
   const s = items?.stats;
-  const isFiltered = kevFilters.severity !== 'all' || kevFilters.overdueOnly || kevFilters.sort !== 'due'
-    || eolFilters.status !== 'all' || eolFilters.days !== 90 || eolFilters.search
-    || cvssFilters.minScore !== 9.0 || cvssFilters.days !== 7;
+  const isFiltered = kevFilters.severity !== 'all' || kevFilters.overdueOnly || kevFilters.dueBefore || kevFilters.sort !== 'due'
+    || eolFilters.status !== 'all' || eolFilters.days !== 90 || eolFilters.eolBefore || eolFilters.search
+    || cvssFilters.minScore !== 9.0 || cvssFilters.days !== 7 || cvssFilters.dateFrom;
 
   return (
     <div className="space-y-3">
@@ -213,9 +239,9 @@ export default function ActionItemsPage() {
         {isFiltered && (
           <button
             onClick={() => {
-              const kf: KevFilters = { severity: 'all', overdueOnly: false, sort: 'due', limit: 30 };
-              const ef: EolFilters = { status: 'all', days: 90, search: '', sort: 'date' };
-              const cf: CvssFilters = { minScore: 9.0, days: 7 };
+              const kf: KevFilters = { severity: 'all', overdueOnly: false, dueBefore: '', sort: 'due', limit: 30 };
+              const ef: EolFilters = { status: 'all', days: 90, eolBefore: '', search: '', sort: 'date' };
+              const cf: CvssFilters = { minScore: 9.0, days: 7, dateFrom: '' };
               setKevFilters(kf); setEolFilters(ef); setCvssFilters(cf);
               setEolSearchInput('');
               fetchData(kf, ef, cf);
@@ -271,6 +297,9 @@ export default function ActionItemsPage() {
             <FilterSelect value={kevFilters.severity} onChange={(v) => updateKev({ severity: v as any })}
               options={[{ label: '전체 등급', value: 'all' }, { label: 'CRITICAL만', value: 'CRITICAL' }, { label: 'HIGH만', value: 'HIGH' }]} />
             <FilterToggle active={kevFilters.overdueOnly} label="기한초과만" onClick={() => updateKev({ overdueOnly: !kevFilters.overdueOnly })} />
+            <FilterDate label="기한 ~까지" value={kevFilters.dueBefore} accent="var(--red)"
+              title="CISA 시정 기한이 이 날짜까지인 KEV만 표시 (그때까지 반드시 조치해야 할 항목)"
+              onChange={(v) => updateKev({ dueBefore: v })} />
             <div className="flex items-center gap-1 ml-1" style={{ borderLeft: '1px solid var(--border-dim)', paddingLeft: '8px' }}>
               <SortAscending size={12} style={{ color: 'var(--text-muted)' }} />
               <FilterSelect value={kevFilters.sort} onChange={(v) => updateKev({ sort: v as any })}
@@ -349,17 +378,25 @@ export default function ActionItemsPage() {
             <FunnelSimple size={12} style={{ color: 'var(--text-muted)' }} />
             <FilterSelect value={String(cvssFilters.minScore)} onChange={(v) => updateCvss({ minScore: Number(v) })}
               options={[
+                { label: 'CVSS 7.0+', value: '7.0' },
+                { label: 'CVSS 8.0+', value: '8.0' },
                 { label: 'CVSS 9.0+', value: '9.0' },
                 { label: 'CVSS 9.5+', value: '9.5' },
                 { label: 'CVSS 10.0', value: '10.0' },
               ]} />
-            <FilterSelect value={String(cvssFilters.days)} onChange={(v) => updateCvss({ days: Number(v) })}
+            <FilterSelect value={String(cvssFilters.days)} onChange={(v) => updateCvss({ days: Number(v), dateFrom: '' })}
+              disabled={!!cvssFilters.dateFrom}
               options={[
                 { label: '최근 3일', value: '3' },
                 { label: '최근 7일', value: '7' },
                 { label: '최근 14일', value: '14' },
                 { label: '최근 30일', value: '30' },
+                { label: '최근 60일', value: '60' },
+                { label: '최근 90일', value: '90' },
               ]} />
+            <FilterDate label="이후 공개" value={cvssFilters.dateFrom} accent="var(--orange)"
+              title="이 날짜 이후 공개된 취약점만 표시 (설정 시 기간 선택보다 우선)"
+              onChange={(v) => updateCvss({ dateFrom: v })} />
           </div>
         </SectionHeader>
 
@@ -421,13 +458,14 @@ export default function ActionItemsPage() {
             <FunnelSimple size={12} style={{ color: 'var(--text-muted)' }} />
             {/* 상태 필터 */}
             <FilterSelect value={eolFilters.status} onChange={(v) => updateEol({ status: v as any })}
+              disabled={!!eolFilters.eolBefore}
               options={[
                 { label: '전체 (만료+임박)', value: 'all' },
                 { label: '만료됨만', value: 'expired' },
                 { label: '임박만', value: 'upcoming' },
               ]} />
             {/* 기간 */}
-            {eolFilters.status !== 'expired' && (
+            {eolFilters.status !== 'expired' && !eolFilters.eolBefore && (
               <FilterSelect value={String(eolFilters.days)} onChange={(v) => updateEol({ days: Number(v) })}
                 options={[
                   { label: '30일 이내', value: '30' },
@@ -435,8 +473,12 @@ export default function ActionItemsPage() {
                   { label: '90일 이내', value: '90' },
                   { label: '180일 이내', value: '180' },
                   { label: '365일 이내', value: '365' },
+                  { label: '2년 이내', value: '730' },
                 ]} />
             )}
+            <FilterDate label="~까지 EOL" value={eolFilters.eolBefore} accent="var(--yellow)"
+              title="지금부터 이 날짜까지 지원 종료 예정인 제품만 표시 (설정 시 상태/기간보다 우선)"
+              onChange={(v) => updateEol({ eolBefore: v })} />
             {/* 정렬 */}
             <div className="flex items-center gap-1" style={{ borderLeft: '1px solid var(--border-dim)', paddingLeft: '8px' }}>
               <SortAscending size={12} style={{ color: 'var(--text-muted)' }} />

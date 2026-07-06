@@ -12,21 +12,33 @@ export async function GET(req: NextRequest) {
     const cutoffDays = stored ? Math.max(1, parseInt(stored, 10) || 365) : 365;
     const cutoffDate = new Date(Date.now() - cutoffDays * 24 * 60 * 60 * 1000);
 
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    const endOfDay = (d: string) => new Date(`${d}T23:59:59.999Z`);
+    const startOfDay = (d: string) => new Date(`${d}T00:00:00.000Z`);
+
     // ── EOL 필터 파라미터 ────────────────────────────────────
     const eolStatus  = searchParams.get('eolStatus')  || 'all';   // all | expired | upcoming
-    const eolDays    = Math.min(365, Math.max(7, parseInt(searchParams.get('eolDays') || '90', 10)));
+    const eolDays    = Math.min(3650, Math.max(7, parseInt(searchParams.get('eolDays') || '90', 10)));
     const eolSearch  = searchParams.get('eolSearch')  || '';
     const eolSort    = searchParams.get('eolSort')    || 'date';   // date | product
+    const eolBeforeStr = searchParams.get('eolBefore') || '';       // YYYY-MM-DD: 이 날짜까지 지원 종료 예정
+    const eolBeforeDate = DATE_RE.test(eolBeforeStr) ? endOfDay(eolBeforeStr) : null;
 
     // ── KEV 필터 파라미터 ────────────────────────────────────
     const kevSeverity   = searchParams.get('kevSeverity')   || 'all';  // all | CRITICAL | HIGH
     const kevOverdue    = searchParams.get('kevOverdue')     === '1';
     const kevSort       = searchParams.get('kevSort')        || 'due';  // due | severity | published
     const kevLimit      = Math.min(100, Math.max(10, parseInt(searchParams.get('kevLimit') || '30', 10)));
+    const kevDueBeforeStr = searchParams.get('kevDueBefore') || '';     // YYYY-MM-DD: 시정 기한이 이 날짜까지
+    const kevDueBeforeDate = DATE_RE.test(kevDueBeforeStr) ? endOfDay(kevDueBeforeStr) : null;
 
     // ── CVSS 필터 파라미터 ───────────────────────────────────
     const cvssMinScore  = parseFloat(searchParams.get('cvssMin') || '9.0');
-    const cvssDays      = Math.min(30, Math.max(1, parseInt(searchParams.get('cvssDays') || '7', 10)));
+    const cvssDays      = Math.min(365, Math.max(1, parseInt(searchParams.get('cvssDays') || '7', 10)));
+    const cvssDateFromStr = searchParams.get('cvssDateFrom') || '';     // YYYY-MM-DD: 이 날짜 이후 공개
+    const cvssFromDate = DATE_RE.test(cvssDateFromStr)
+      ? startOfDay(cvssDateFromStr)
+      : new Date(Date.now() - cvssDays * 24 * 60 * 60 * 1000);
 
     const now   = new Date();
     const inXd  = new Date(Date.now() + eolDays * 24 * 60 * 60 * 1000);
@@ -41,7 +53,12 @@ export async function GET(req: NextRequest) {
     // eolDays 범위의 과거 경계 (만료 항목도 eolDays 이내만 표시)
     const pastBound = new Date(Date.now() - eolDays * 24 * 60 * 60 * 1000);
 
-    if (eolStatus === 'all') {
+    if (eolBeforeDate) {
+      // 커스텀 날짜 우선: 지금부터 그 날짜까지 지원 종료 예정
+      eolWhere.OR = [
+        { isEol: false, eolDate: { gte: now, lte: eolBeforeDate } },
+      ];
+    } else if (eolStatus === 'all') {
       eolWhere.OR = [
         // 최근 eolDays 내 만료된 항목 (isEol or eolDate 지남)
         { isEol: true,  eolDate: { gte: pastBound } },
@@ -69,7 +86,7 @@ export async function GET(req: NextRequest) {
     type KevWhereClause = {
       isKev: boolean;
       cvssScores: { some: { baseSeverity: { in: string[] } } };
-      kevEntry?: { dueDate: { lt: Date } };
+      kevEntry?: { dueDate: Record<string, Date> };
     };
     const kevWhere: KevWhereClause = {
       isKev: true,
@@ -83,8 +100,12 @@ export async function GET(req: NextRequest) {
         },
       },
     };
-    if (kevOverdue) {
-      kevWhere.kevEntry = { dueDate: { lt: now } };
+    // 시정 기한 조건: 기한초과(< now) / 특정 날짜까지(<= date) 조합
+    const dueCond: Record<string, Date> = {};
+    if (kevOverdue)       dueCond.lt = now;
+    if (kevDueBeforeDate) dueCond.lte = kevDueBeforeDate;
+    if (Object.keys(dueCond).length) {
+      kevWhere.kevEntry = { dueDate: dueCond };
     }
 
     const [kevRaw, eolData, recentHighCvss, overdueKev] = await Promise.all([
@@ -105,11 +126,11 @@ export async function GET(req: NextRequest) {
 
       prisma.vulnerability.findMany({
         where: {
-          publishedAt: { gte: new Date(Date.now() - cvssDays * 24 * 60 * 60 * 1000) },
+          publishedAt: { gte: cvssFromDate },
           cvssScores: { some: { baseScore: { gte: cvssMinScore } } },
         },
         include: { cvssScores: { orderBy: { version: 'desc' } }, kevEntry: true },
-        take: 15,
+        take: 30,
         orderBy: { publishedAt: 'desc' },
       }),
 
@@ -165,7 +186,7 @@ export async function GET(req: NextRequest) {
         eolCount:     eolData.filter(e => e.isEol || (e.eolDate && new Date(e.eolDate) < now)).length,
         eolSoonCount: eolData.filter(e => !e.isEol && e.eolDate && new Date(e.eolDate) >= now).length,
       },
-      meta: { eolDays, eolStatus, kevSeverity, kevOverdue, kevSort, cvssMinScore, cvssDays },
+      meta: { eolDays, eolStatus, kevSeverity, kevOverdue, kevSort, cvssMinScore, cvssDays, kevDueBefore: kevDueBeforeStr, cvssDateFrom: cvssDateFromStr, eolBefore: eolBeforeStr },
     });
   } catch (err: any) {
     console.error('[API] action-items error:', err);
