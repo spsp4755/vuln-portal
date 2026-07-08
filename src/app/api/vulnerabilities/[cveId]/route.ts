@@ -19,6 +19,8 @@ export async function GET(
         cpeMappings:    { orderBy: { vendor: 'asc' } },
         cweWeaknesses:  true,
         kevEntry:       true,
+        kisaNotices:    { orderBy: { pubDate: 'desc' } },
+        githubAdvisories: { orderBy: { updatedAt: 'desc' } },
         aiSummary:      true,
         exploitEntries: { orderBy: { dateAdded: 'desc' } },
       },

@@ -9,7 +9,7 @@
 set -e
 
 POD_NAME="vuln-portal"
-APP_IMAGE="vuln-portal-app:v1.4.14"
+APP_IMAGE="vuln-portal-app:v1.4.15"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
@@ -17,7 +17,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 echo "▶ 기존 환경변수 읽는 중..."
 DB_ENV=$(podman inspect "${POD_NAME}-app" \
   --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | \
-  grep -E "DATABASE_URL|AUTH_SECRET|NVD_API_KEY|VULNCHECK|OPENAI" || true)
+  grep -E "DATABASE_URL|AUTH_SECRET|NVD_API_KEY|VULNCHECK|GITHUB_TOKEN|OPENAI" || true)
 
 if [ -z "$DB_ENV" ]; then
   echo "❌ 기존 컨테이너를 찾을 수 없습니다."
@@ -29,6 +29,7 @@ DATABASE_URL=$(echo "$DB_ENV"    | grep ^DATABASE_URL    | cut -d= -f2-)
 AUTH_SECRET=$(echo "$DB_ENV"     | grep ^AUTH_SECRET     | cut -d= -f2-)
 NVD_API_KEY=$(echo "$DB_ENV"     | grep ^NVD_API_KEY     | cut -d= -f2-)
 VULNCHECK_API_KEY=$(echo "$DB_ENV" | grep ^VULNCHECK_API_KEY | cut -d= -f2-)
+GITHUB_TOKEN=$(echo "$DB_ENV" | grep ^GITHUB_TOKEN | cut -d= -f2-)
 OPENAI_BASE_URL=$(echo "$DB_ENV" | grep ^OPENAI_BASE_URL | cut -d= -f2-)
 OPENAI_API_KEY=$(echo "$DB_ENV"  | grep ^OPENAI_API_KEY  | cut -d= -f2-)
 OPENAI_MODEL=$(echo "$DB_ENV"    | grep ^OPENAI_MODEL    | cut -d= -f2-)
@@ -58,6 +59,7 @@ podman run -d \
   --env AUTH_SECRET="$AUTH_SECRET" \
   --env NVD_API_KEY="$NVD_API_KEY" \
   --env VULNCHECK_API_KEY="$VULNCHECK_API_KEY" \
+  --env GITHUB_TOKEN="$GITHUB_TOKEN" \
   --env OPENAI_BASE_URL="$OPENAI_BASE_URL" \
   --env OPENAI_API_KEY="$OPENAI_API_KEY" \
   --env OPENAI_MODEL="$OPENAI_MODEL" \

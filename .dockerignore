@@ -11,3 +11,5 @@ k8s/
 podman/
 tsconfig.tsbuildinfo
 *.log
+*.tar
+*.tar.gz

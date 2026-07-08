@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { ShieldWarning, MagnifyingGlass, ArrowLeft, ArrowRight, X, CalendarBlank, SortAscending, ArrowUp, ArrowDown, Translate, Sparkle, CaretDown } from '@phosphor-icons/react';
+import { ShieldWarning, MagnifyingGlass, ArrowLeft, ArrowRight, X, CalendarBlank, SortAscending, ArrowUp, ArrowDown, Translate, Sparkle, CaretDown, Newspaper, GithubLogo } from '@phosphor-icons/react';
 import { TermTooltip, Tooltip } from '@/components/ui/Tooltip';
 
 interface AiSummaryLite {
@@ -16,6 +16,8 @@ interface Vuln {
   id: string; cveId: string; publishedAt: string | null; modifiedAt: string | null;
   cvssScores: { baseScore: number; baseSeverity: string; version: string }[];
   kevEntry: { id: string } | null;
+  kisaNotices: { id: string; title: string; link: string }[];
+  githubAdvisories: { id: string; ghsaId: string; htmlUrl: string; ecosystem?: string | null; packageName?: string | null }[];
   cpeMappings: { vendor: string; product: string }[];
   cweWeaknesses: { cweId: string }[];
   epssScore: { score: number } | null;
@@ -59,6 +61,8 @@ function VulnerabilitiesContent() {
   const [cwe,       setCwe]       = useState(searchParams.get('cwe') || '');
   const [attackVector, setAttackVector] = useState((searchParams.get('attackVector') || '').toUpperCase());
   const [kevOnly,   setKevOnly]   = useState(searchParams.get('kev') === 'true');
+  const [kisaOnly,  setKisaOnly]  = useState(searchParams.get('kisa') === 'true');
+  const [githubOnly, setGithubOnly] = useState(searchParams.get('github') === 'true');
   const [dateFrom,  setDateFrom]  = useState(searchParams.get('dateFrom') || '');
   const [dateTo,    setDateTo]    = useState(searchParams.get('dateTo') || '');
   const [limit,     setLimit]     = useState(20);
@@ -179,7 +183,7 @@ function VulnerabilitiesContent() {
   }, [rowLang, patchVulns]);
 
   const doSearch = useCallback((pg = 1, opts?: {
-    kw?: string; sv?: string; vd?: string; cw?: string; av?: string; kev?: boolean; from?: string; to?: string; lim?: number;
+    kw?: string; sv?: string; vd?: string; cw?: string; av?: string; kev?: boolean; kisa?: boolean; github?: boolean; from?: string; to?: string; lim?: number;
     sort?: SortCol; order?: 'asc' | 'desc'; epss?: string;
   }) => {
     const kw    = opts?.kw    !== undefined ? opts.kw    : keyword;
@@ -188,6 +192,8 @@ function VulnerabilitiesContent() {
     const cw    = opts?.cw    !== undefined ? opts.cw    : cwe;
     const av    = opts?.av    !== undefined ? opts.av    : attackVector;
     const kev   = opts?.kev   !== undefined ? opts.kev   : kevOnly;
+    const kisa  = opts?.kisa  !== undefined ? opts.kisa  : kisaOnly;
+    const github = opts?.github !== undefined ? opts.github : githubOnly;
     const from  = opts?.from  !== undefined ? opts.from  : dateFrom;
     const to    = opts?.to    !== undefined ? opts.to    : dateTo;
     const lim   = opts?.lim   !== undefined ? opts.lim   : limit;
@@ -203,6 +209,8 @@ function VulnerabilitiesContent() {
     if (cw)   p.set('cwe',      cw);
     if (av)   p.set('attackVector', av);
     if (kev)  p.set('kev',      'true');
+    if (kisa) p.set('kisa',     'true');
+    if (github) p.set('github', 'true');
     if (from) p.set('dateFrom', from);
     if (to)   p.set('dateTo',   to);
     p.set('page',  String(pg));
@@ -225,7 +233,7 @@ function VulnerabilitiesContent() {
         setLoading(false);
       })
       .catch((e) => { setApiError(e.message); setLoading(false); });
-  }, [keyword, severity, vendor, cwe, attackVector, kevOnly, dateFrom, dateTo, limit, sortBy, sortOrder, epssMin]);
+  }, [keyword, severity, vendor, cwe, attackVector, kevOnly, kisaOnly, githubOnly, dateFrom, dateTo, limit, sortBy, sortOrder, epssMin]);
 
   // 초기 로드
   useEffect(() => { doSearch(1); }, []);
@@ -238,9 +246,9 @@ function VulnerabilitiesContent() {
   };
 
   const handleReset = () => {
-    setSeverity(''); setVendor(''); setCwe(''); setAttackVector(''); setKevOnly(false); setKeyword(''); setDateFrom(''); setDateTo('');
+    setSeverity(''); setVendor(''); setCwe(''); setAttackVector(''); setKevOnly(false); setKisaOnly(false); setGithubOnly(false); setKeyword(''); setDateFrom(''); setDateTo('');
     setEpssMin(''); setSortBy('publishedAt'); setSortOrder('desc');
-    doSearch(1, { kw: '', sv: '', vd: '', cw: '', av: '', kev: false, from: '', to: '', epss: '', sort: 'publishedAt', order: 'desc' });
+    doSearch(1, { kw: '', sv: '', vd: '', cw: '', av: '', kev: false, kisa: false, github: false, from: '', to: '', epss: '', sort: 'publishedAt', order: 'desc' });
   };
 
   const toggleSort = (col: SortCol) => {
@@ -255,7 +263,7 @@ function VulnerabilitiesContent() {
     }
   };
 
-  const hasFilters = keyword || severity || vendor || cwe || attackVector || kevOnly || dateFrom || dateTo || epssMin;
+  const hasFilters = keyword || severity || vendor || cwe || attackVector || kevOnly || kisaOnly || githubOnly || dateFrom || dateTo || epssMin;
 
   const thStyle = (col: SortCol): React.CSSProperties => ({
     cursor: 'pointer',
@@ -358,6 +366,30 @@ function VulnerabilitiesContent() {
               }}
             >
               <ShieldWarning size={13} /> KEV
+            </button>
+            <button
+              onClick={() => { const next = !kisaOnly; setKisaOnly(next); doSearch(1, { kisa: next }); }}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all"
+              style={{
+                fontFamily: 'JetBrains Mono, monospace', fontWeight: 600,
+                background: kisaOnly ? 'var(--cyan-dim)' : 'var(--elevated)',
+                color: kisaOnly ? 'var(--cyan)' : 'var(--text-muted)',
+                border: `1px solid ${kisaOnly ? 'rgba(0,212,255,0.3)' : 'var(--border-dim)'}`,
+              }}
+            >
+              <Newspaper size={13} /> KISA
+            </button>
+            <button
+              onClick={() => { const next = !githubOnly; setGithubOnly(next); doSearch(1, { github: next }); }}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all"
+              style={{
+                fontFamily: 'JetBrains Mono, monospace', fontWeight: 600,
+                background: githubOnly ? 'rgba(168,85,247,0.15)' : 'var(--elevated)',
+                color: githubOnly ? '#a855f7' : 'var(--text-muted)',
+                border: `1px solid ${githubOnly ? 'rgba(168,85,247,0.3)' : 'var(--border-dim)'}`,
+              }}
+            >
+              <GithubLogo size={13} weight="fill" /> GHSA
             </button>
           </div>
 
@@ -593,13 +625,29 @@ function VulnerabilitiesContent() {
                               <ShieldWarning size={10} weight="fill" /> KEV
                             </span>
                           )}
+                          {v.kisaNotices?.length > 0 && (
+                            <a href={v.kisaNotices[0].link} target="_blank" rel="noreferrer"
+                              title={v.kisaNotices[0].title}
+                              className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded"
+                              style={{ background: 'var(--cyan-dim)', color: 'var(--cyan)', border: '1px solid rgba(0,212,255,0.2)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>
+                              <Newspaper size={10} weight="fill" /> KISA
+                            </a>
+                          )}
+                          {v.githubAdvisories?.length > 0 && (
+                            <a href={v.githubAdvisories[0].htmlUrl} target="_blank" rel="noreferrer"
+                              title={`${v.githubAdvisories[0].ghsaId}${v.githubAdvisories[0].ecosystem ? ` · ${v.githubAdvisories[0].ecosystem}` : ''}${v.githubAdvisories[0].packageName ? `/${v.githubAdvisories[0].packageName}` : ''}`}
+                              className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded"
+                              style={{ background: 'rgba(168,85,247,0.12)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.25)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>
+                              <GithubLogo size={10} weight="fill" /> GHSA
+                            </a>
+                          )}
                           {v.cweWeaknesses.slice(0, 1).map((c) => (
                             <span key={c.cweId} className="inline-flex text-xs px-1.5 py-0.5 rounded"
                               style={{ background: 'var(--border-dim)', color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace', fontSize: '10px' }}>
                               {c.cweId}
                             </span>
                           ))}
-                          {!v.kevEntry && !v.cweWeaknesses.length && <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                          {!v.kevEntry && !v.kisaNotices?.length && !v.githubAdvisories?.length && !v.cweWeaknesses.length && <span style={{ color: 'var(--text-muted)' }}>—</span>}
                         </div>
                       </td>
                       <td className="whitespace-nowrap">

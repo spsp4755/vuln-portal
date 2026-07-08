@@ -9,6 +9,7 @@ import { TermTooltip } from '@/components/ui/Tooltip';
 import {
   ShieldWarning, Cube, Code, Link as LinkIcon, ArrowLeft,
   Sparkle, Robot, ArrowSquareOut, GitBranch, ArrowRight, Bug,
+  GithubLogo,
 } from '@phosphor-icons/react';
 import { format, differenceInDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -29,6 +30,19 @@ interface ExploitEntry {
   exploitType: string | null;
   dateAdded: string | null;
   cloneSshUrl: string | null;
+}
+
+interface GithubAdvisory {
+  id: string;
+  ghsaId: string;
+  htmlUrl: string;
+  summary: string;
+  severity: string | null;
+  ecosystem: string | null;
+  packageName: string | null;
+  vulnerableRange: string | null;
+  patchedVersion: string | null;
+  updatedAt: string | null;
 }
 
 interface VulnDetail {
@@ -67,6 +81,7 @@ interface VulnDetail {
     recommendation?: string;
   } | null;
   exploitEntries: ExploitEntry[];
+  githubAdvisories: GithubAdvisory[];
 }
 
 function Section({ title, icon, children, accent = 'var(--border-base)' }: {
@@ -198,6 +213,12 @@ export default function CveDetailPage() {
               <span className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg"
                 style={{ background: 'var(--red-dim)', color: 'var(--red)', border: '1px solid rgba(255,59,59,0.3)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
                 <ShieldWarning size={13} weight="fill" /> KEV
+              </span>
+            )}
+            {vuln.githubAdvisories?.length > 0 && (
+              <span className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg"
+                style={{ background: 'rgba(168,85,247,0.15)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.3)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
+                <GithubLogo size={13} weight="fill" /> GHSA
               </span>
             )}
             {vuln.cvssScores[0] && (
@@ -496,6 +517,42 @@ export default function CveDetailPage() {
           </Section>
         )}
       </div>
+
+      {vuln.githubAdvisories?.length > 0 && (
+        <Section title="GitHub Security Advisory" icon={<GithubLogo size={15} weight="fill" />} accent="#a855f7">
+          <div className="space-y-2">
+            {vuln.githubAdvisories.map((a) => (
+              <a key={a.id} href={a.htmlUrl} target="_blank" rel="noopener noreferrer"
+                className="block p-3 rounded-xl transition-all"
+                style={{ background: 'var(--elevated)', border: '1px solid var(--border-dim)', textDecoration: 'none' }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs px-2 py-0.5 rounded"
+                    style={{ background: 'rgba(168,85,247,0.12)', color: '#a855f7', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
+                    {a.ghsaId}
+                  </span>
+                  {a.severity && (
+                    <span className="text-xs px-2 py-0.5 rounded"
+                      style={{ background: 'var(--border-dim)', color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono, monospace' }}>
+                      {a.severity}
+                    </span>
+                  )}
+                  {a.ecosystem && (
+                    <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
+                      {a.ecosystem}{a.packageName ? ` / ${a.packageName}` : ''}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm mt-2" style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{a.summary}</p>
+                {(a.vulnerableRange || a.patchedVersion) && (
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
+                    affected: {a.vulnerableRange || 'unknown'} · patched: {a.patchedVersion || 'unknown'}
+                  </p>
+                )}
+              </a>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* Exploit Entries */}
       {vuln.exploitEntries?.length > 0 && (

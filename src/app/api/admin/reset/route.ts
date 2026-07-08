@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-const ALLOWED_SOURCES = ['eol', 'endoflife', 'nvd', 'cisa_kev', 'epss', 'vulncheck', 'all'] as const;
+const ALLOWED_SOURCES = ['eol', 'endoflife', 'nvd', 'cisa_kev', 'epss', 'vulncheck', 'kisa', 'github_advisory', 'all'] as const;
 
 // POST /api/admin/reset  body: { source: 'eol' | 'nvd' | ... | 'all' }
 export async function POST(req: NextRequest) {
@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
 
     if (source === 'nvd' || source === 'all') {
       // 연관 데이터 먼저 삭제 (FK 제약)
+      const { count: ghsa } = await prisma.githubAdvisory.deleteMany({});
+      const { count: kisa } = await prisma.kisaNotice.deleteMany({});
       const { count: cvss } = await prisma.cvssScore.deleteMany({});
       const { count: cpe }  = await prisma.cpeMapping.deleteMany({});
       const { count: cwe }  = await prisma.cweWeakness.deleteMany({});
@@ -35,6 +37,8 @@ export async function POST(req: NextRequest) {
       result.cpeMappings = cpe;
       result.cweWeaknesses = cwe;
       result.epssScores = epss;
+      result.githubAdvisories = ghsa;
+      result.kisaNotices = kisa;
       if (source === 'all') result.kevEntries = kev;
     }
 
@@ -57,6 +61,16 @@ export async function POST(req: NextRequest) {
       const { count: kev } = await prisma.kevEntry.deleteMany({});
       result.kevEntriesCleared = kev;
       result.vulnsIsKevReset = count;
+    }
+
+    if (source === 'kisa') {
+      const { count } = await prisma.kisaNotice.deleteMany({});
+      result.kisaNotices = count;
+    }
+
+    if (source === 'github_advisory') {
+      const { count } = await prisma.githubAdvisory.deleteMany({});
+      result.githubAdvisories = count;
     }
 
     // 수집 로그는 항상 남겨둠 (히스토리 보존)

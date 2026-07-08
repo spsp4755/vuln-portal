@@ -6,6 +6,7 @@ export const CONFIG_KEYS = [
   'OPENAI_BASE_URL',
   'OPENAI_MODEL',
   'VULNCHECK_API_KEY',
+  'GITHUB_TOKEN',
   'EOL_CUTOFF_DAYS',
   'NVD_DAYS_BACK',
 ] as const;

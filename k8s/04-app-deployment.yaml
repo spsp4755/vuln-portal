@@ -15,9 +15,9 @@ spec:
     spec:
       initContainers:
         - name: migrate
-          image: vuln-portal-app:1.0.0
+          image: vuln-portal-app:v1.4.15
           imagePullPolicy: Never           # 레지스트리 없이 노드 로컬 이미지 사용
-          command: ["npx", "prisma", "migrate", "deploy"]
+          command: ["npx", "prisma", "db", "push", "--skip-generate"]
           env:
             - name: DATABASE_URL
               valueFrom:
@@ -26,7 +26,7 @@ spec:
                   key: DATABASE_URL
       containers:
         - name: app
-          image: vuln-portal-app:1.0.0
+          image: vuln-portal-app:v1.4.15
           imagePullPolicy: Never           # 레지스트리 없이 노드 로컬 이미지 사용
           command: ["node", "server.js"]
           ports:
@@ -56,6 +56,11 @@ spec:
                 secretKeyRef:
                   name: vuln-portal-secret
                   key: VULNCHECK_API_KEY
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vuln-portal-secret
+                  key: GITHUB_TOKEN
             - name: OPENAI_BASE_URL
               valueFrom:
                 secretKeyRef:

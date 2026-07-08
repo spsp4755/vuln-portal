@@ -13,7 +13,7 @@
 set -e
 
 POD_NAME="vuln-portal"
-APP_IMAGE="vuln-portal-app:v1.4.14"
+APP_IMAGE="vuln-portal-app:v1.4.15"
 PG_IMAGE="postgres:16-alpine"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -28,6 +28,7 @@ AUTH_SECRET="change-this-secret-min-32-characters!!"  # ★ 반드시 변경 (32
 # 외부 API 키 (없으면 빈 문자열 — 해당 수집기만 비활성화됨)
 NVD_API_KEY=""
 VULNCHECK_API_KEY=""
+GITHUB_TOKEN=""
 OPENAI_BASE_URL=""    # 로컬 LLM: http://192.168.x.x:11434/v1
 OPENAI_API_KEY=""
 OPENAI_MODEL=""
@@ -119,6 +120,7 @@ podman run -d \
   --env AUTH_SECRET="$AUTH_SECRET" \
   --env NVD_API_KEY="$NVD_API_KEY" \
   --env VULNCHECK_API_KEY="$VULNCHECK_API_KEY" \
+  --env GITHUB_TOKEN="$GITHUB_TOKEN" \
   --env OPENAI_BASE_URL="$OPENAI_BASE_URL" \
   --env OPENAI_API_KEY="$OPENAI_API_KEY" \
   --env OPENAI_MODEL="$OPENAI_MODEL" \

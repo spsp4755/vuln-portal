@@ -15,6 +15,8 @@ export async function GET(req: Request) {
     const cwe      = searchParams.get('cwe')      || '';
     const attackVector = searchParams.get('attackVector')?.toUpperCase() || '';
     const kevOnly  = searchParams.get('kev') === 'true';
+    const kisaOnly = searchParams.get('kisa') === 'true';
+    const githubOnly = searchParams.get('github') === 'true';
     const dateFrom = searchParams.get('dateFrom') || '';
     const dateTo   = searchParams.get('dateTo')   || '';
     const sortBy   = searchParams.get('sort')     || 'publishedAt';   // publishedAt | modifiedAt | cvssScore | epssScore
@@ -43,6 +45,8 @@ export async function GET(req: Request) {
     if (product) where.cpeMappings = { some: { product: { equals: product, mode: 'insensitive' } } };
     if (cwe)     where.cweWeaknesses = { some: { cweId: { equals: cwe } } };
     if (kevOnly) where.isKev = true;
+    if (kisaOnly) where.kisaNotices = { some: {} };
+    if (githubOnly) where.githubAdvisories = { some: {} };
     if (epssMin > 0) where.epssScore = { score: { gte: epssMin } };
 
     if (dateFrom || dateTo) {
@@ -71,6 +75,8 @@ export async function GET(req: Request) {
           kevEntry:       true,
           cpeMappings:    { take: 3 },
           cweWeaknesses:  { take: 3 },
+          kisaNotices:    { take: 2, orderBy: { pubDate: 'desc' } },
+          githubAdvisories: { take: 2, orderBy: { updatedAt: 'desc' } },
           epssScore:      true,
           aiSummary:      true,
         },

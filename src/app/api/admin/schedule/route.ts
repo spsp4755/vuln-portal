@@ -9,6 +9,8 @@ const SCHEDULE_KEYS = [
   'SCHEDULE_EOL',
   'SCHEDULE_EPSS',
   'SCHEDULE_VULNCHECK',
+  'SCHEDULE_KISA',
+  'SCHEDULE_GITHUB_ADVISORY',
 ];
 
 const DEFAULTS: Record<string, string> = {
@@ -18,6 +20,8 @@ const DEFAULTS: Record<string, string> = {
   SCHEDULE_EOL:       '0 3 * * 1',
   SCHEDULE_EPSS:      '0 4 * * *',
   SCHEDULE_VULNCHECK: '0 */12 * * *',
+  SCHEDULE_KISA:      '0 5 * * *',
+  SCHEDULE_GITHUB_ADVISORY: '0 6 * * *',
 };
 
 /** 다음 실행 시각 계산 (간단한 표현용) */

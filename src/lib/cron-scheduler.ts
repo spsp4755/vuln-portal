@@ -44,6 +44,8 @@ async function getScheduleConfig(): Promise<Record<string, string>> {
     SCHEDULE_EOL:       '0 3 * * 1',     // 매주 월요일 03:00
     SCHEDULE_EPSS:      '0 4 * * *',     // 매일 04:00 (FIRST.org, API 키 불필요)
     SCHEDULE_VULNCHECK: '0 */12 * * *',  // 12시간마다
+    SCHEDULE_KISA:      '0 5 * * *',     // 매일 05:00
+    SCHEDULE_GITHUB_ADVISORY: '0 6 * * *', // 매일 06:00
   };
   try {
     const keys = Object.keys(defaults);
@@ -76,6 +78,8 @@ export async function startScheduler() {
     { key: 'SCHEDULE_EOL',       source: 'endoflife', label: 'EndOfLife' },
     { key: 'SCHEDULE_EPSS',      source: 'epss',      label: 'EPSS' },
     { key: 'SCHEDULE_VULNCHECK', source: 'vulncheck', label: 'VulnCheck KEV' },
+    { key: 'SCHEDULE_KISA',      source: 'kisa',      label: 'KISA/KNVD' },
+    { key: 'SCHEDULE_GITHUB_ADVISORY', source: 'github_advisory', label: 'GitHub Advisory' },
   ];
 
   for (const job of jobs) {

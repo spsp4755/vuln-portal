@@ -4,6 +4,8 @@ import { collectEndoflife } from '@/lib/collectors/endoflife';
 import { collectCisaKev } from '@/lib/collectors/cisa_kev';
 import { collectEpss } from '@/lib/collectors/epss';
 import { collectVulnCheck } from '@/lib/collectors/vulncheck';
+import { collectKisa } from '@/lib/collectors/kisa';
+import { collectGithubAdvisories } from '@/lib/collectors/github_advisory';
 import { prisma } from '@/lib/prisma';
 import { registerJob, finishJob, cancelJob, getRunningJobs } from '@/lib/collect-jobs';
 import { getConfig } from '@/lib/config';
@@ -45,6 +47,8 @@ function getCollectorTask(source: string, daysBack?: number): ((signal: AbortSig
     case 'cisa_kev':  return (_signal) => collectCisaKev();
     case 'epss':      return (_signal) => collectEpss();
     case 'vulncheck': return (_signal) => collectVulnCheck();
+    case 'kisa':      return (_signal) => collectKisa();
+    case 'github_advisory': return (_signal) => collectGithubAdvisories(daysBack || 30);
     default:          return null;
   }
 }
@@ -97,7 +101,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 전체 수집 — 모든 소스 백그라운드 실행
-    const sources = ['nvd', 'cisa_kev', 'endoflife', 'epss', 'vulncheck'];
+    const sources = ['nvd', 'cisa_kev', 'endoflife', 'epss', 'vulncheck', 'kisa', 'github_advisory'];
     const logIds: string[] = [];
     for (const src of sources) {
       let task: ((signal: AbortSignal) => Promise<any>) | null;

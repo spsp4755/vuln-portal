@@ -37,6 +37,10 @@ const KEY_META: Record<string, { label: string; hint: string; type: 'password' |
     label: 'VulnCheck API Key', type: 'password', placeholder: 'vulncheck_...',
     hint: 'console.vulncheck.com에서 발급. VulnCheck KEV 확장 데이터 수집에 필요합니다. (EPSS는 키 불필요)',
   },
+  GITHUB_TOKEN: {
+    label: 'GitHub Token', type: 'password', placeholder: 'github_pat_... 또는 ghp_...',
+    hint: '선택사항. GitHub Advisory 공개 데이터는 토큰 없이도 수집되지만, 토큰이 있으면 속도 제한이 완화됩니다.',
+  },
   EOL_CUTOFF_DAYS: {
     label: 'EOL 표시 기간 (일)', type: 'text', placeholder: '365',
     hint: 'EOL 날짜가 N일 이상 지난 항목은 수집·표시하지 않습니다. 기본값: 365 (1년 이내만 표시)',
@@ -53,6 +57,8 @@ const COLLECTORS: { id: string; name: string; desc: string; interval: string; ha
   { id: 'endoflife', name: 'EndOfLife.date', desc: '소프트웨어 지원 종료 정보',                   interval: '매주',   hasDays: true },
   { id: 'epss',      name: 'EPSS',           desc: 'FIRST.org EPSS 익스플로잇 예측 점수 (무료)', interval: '매일' },
   { id: 'vulncheck', name: 'VulnCheck KEV',  desc: 'KEV 확장 데이터 + 랜섬웨어 (Community 무료)', interval: '12시간', needsKey: true },
+  { id: 'kisa',      name: 'KISA/KNVD',      desc: '국내 보안공지/취약점 RSS', interval: '매일' },
+  { id: 'github_advisory', name: 'GitHub Advisory', desc: '오픈소스 패키지 보안 권고', interval: '매일' },
 ];
 
 const SCHEDULE_META: Record<string, { label: string; desc: string }> = {
@@ -61,6 +67,8 @@ const SCHEDULE_META: Record<string, { label: string; desc: string }> = {
   SCHEDULE_EOL:       { label: 'EndOfLife.date', desc: '소프트웨어 지원 종료 정보' },
   SCHEDULE_EPSS:      { label: 'EPSS',            desc: 'VulnCheck EPSS 익스플로잇 예측 점수' },
   SCHEDULE_VULNCHECK: { label: 'VulnCheck KEV',  desc: 'KEV 확장 데이터 + 랜섬웨어 여부' },
+  SCHEDULE_KISA:      { label: 'KISA/KNVD',      desc: '국내 보안공지/취약점 RSS 수집' },
+  SCHEDULE_GITHUB_ADVISORY: { label: 'GitHub Advisory', desc: '오픈소스 패키지 보안 권고 수집' },
 };
 
 const CRON_PRESETS = [
@@ -416,7 +424,7 @@ export default function SettingsPage() {
 
   const groups = [
     { title: 'AI 기능 설정', icon: <Robot size={15} />, keys: ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL'] },
-    { title: '데이터 수집 API 키', icon: <Key size={15} />, keys: ['NVD_API_KEY', 'VULNCHECK_API_KEY'] },
+    { title: '데이터 수집 API 키', icon: <Key size={15} />, keys: ['NVD_API_KEY', 'VULNCHECK_API_KEY', 'GITHUB_TOKEN'] },
     { title: '수집 기간 설정', icon: <Timer size={15} />, keys: ['NVD_DAYS_BACK'] },
   ];
 

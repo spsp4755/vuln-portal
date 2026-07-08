@@ -32,6 +32,8 @@ model Vulnerability {
   cpeMappings      CpeMapping[]
   cweWeaknesses    CweWeakness[]
   kevEntry         KevEntry?
+  kisaNotices      KisaNotice[]
+  githubAdvisories GithubAdvisory[]
   aiSummary        AiSummary?
   exploitEntries   ExploitEntry[]
 
@@ -124,6 +126,58 @@ model KevEntry {
   @@index([dateAdded])
   @@index([dueDate])
   @@map("kev_entry")
+}
+
+model KisaNotice {
+  id              String    @id @default(uuid())
+  vulnerabilityId String?   @map("vulnerability_id")
+  guid            String    @unique
+  title           String
+  link            String
+  description     String?
+  pubDate         DateTime? @map("pub_date")
+  source          String    @default("kisa")
+  cveIds          String[]  @default([]) @map("cve_ids")
+  collectedAt     DateTime  @default(now()) @map("collected_at")
+
+  vulnerability   Vulnerability? @relation(fields: [vulnerabilityId], references: [id], onDelete: SetNull)
+
+  @@index([vulnerabilityId])
+  @@index([pubDate])
+  @@map("kisa_notice")
+}
+
+model GithubAdvisory {
+  id              String    @id @default(uuid())
+  vulnerabilityId String?   @map("vulnerability_id")
+  ghsaId          String    @unique @map("ghsa_id")
+  cveId           String?   @map("cve_id")
+  htmlUrl         String    @map("html_url")
+  apiUrl          String    @map("api_url")
+  summary         String
+  description     String?
+  severity        String?
+  ecosystem       String?
+  packageName     String?   @map("package_name")
+  vulnerableRange String?   @map("vulnerable_range")
+  patchedVersion  String?   @map("patched_version")
+  cvssScore       Decimal?  @map("cvss_score")
+  epssPercentage  Decimal?  @map("epss_percentage")
+  cwes            String[]  @default([])
+  publishedAt     DateTime? @map("published_at")
+  updatedAt       DateTime? @map("updated_at")
+  withdrawnAt     DateTime? @map("withdrawn_at")
+  affectedPackages Json     @default("[]") @map("affected_packages")
+  collectedAt     DateTime  @default(now()) @map("collected_at")
+
+  vulnerability   Vulnerability? @relation(fields: [vulnerabilityId], references: [id], onDelete: SetNull)
+
+  @@index([vulnerabilityId])
+  @@index([cveId])
+  @@index([ecosystem])
+  @@index([severity])
+  @@index([updatedAt])
+  @@map("github_advisory")
 }
 
 model EolData {

@@ -196,6 +196,8 @@ cat backup-20240101.sql | \
 | endoflife.date | 443 | EndOfLife.date |
 | api.first.org | 443 | EPSS |
 | api.vulncheck.com | 443 | VulnCheck |
+| knvd.krcert.or.kr | 443 | KISA/KNVD |
+| api.github.com | 443 | GitHub Advisory |
 
 ### 수동 수집
 

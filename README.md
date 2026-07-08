@@ -97,8 +97,10 @@ curl -H "X-API-Key: vp_xxxx" http://서버IP:3000/api/v1/eol
 | EndOfLife.date | 매주 | 소프트웨어 지원 종료 일정 | 무료 |
 | EPSS | 매일 | 익스플로잇 예측 점수 | 무료 |
 | VulnCheck | 12시간 | KEV 확장 + 랜섬웨어 여부 | Community 무료 |
+| KISA/KNVD | 매일 | 국내 보안공지/취약점 RSS | 무료 |
+| GitHub Advisory | 매일 | 오픈소스 패키지 보안 권고 | 공개 데이터 무료 |
 
-> **수집 서버 방화벽 오픈 필요:** nvd.nist.gov, www.cisa.gov, endoflife.date, api.first.org, api.vulncheck.com  
+> **수집 서버 방화벽 오픈 필요:** nvd.nist.gov, www.cisa.gov, endoflife.date, api.first.org, api.vulncheck.com, knvd.krcert.or.kr, api.github.com  
 > (앱 서버 → 외부 HTTPS 443 아웃바운드)
 
 ---
