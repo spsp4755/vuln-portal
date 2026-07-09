@@ -16,7 +16,7 @@ interface Vuln {
   id: string; cveId: string; publishedAt: string | null; modifiedAt: string | null;
   cvssScores: { baseScore: number; baseSeverity: string; version: string }[];
   kevEntry: { id: string } | null;
-  kisaNotices: { id: string; title: string; link: string }[];
+  kisaNotices: { id: string; title: string; link: string; description?: string | null }[];
   githubAdvisories: { id: string; ghsaId: string; htmlUrl: string; ecosystem?: string | null; packageName?: string | null }[];
   cpeMappings: { vendor: string; product: string }[];
   cweWeaknesses: { cweId: string }[];
@@ -358,6 +358,7 @@ function VulnerabilitiesContent() {
           {/* KEV */}
           <div>
             <p className="text-xs mb-1.5 uppercase tracking-widest" style={{ fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 700, color: 'var(--text-muted)' }}>필터</p>
+            <div className="flex flex-wrap gap-1.5 max-w-xs">
             <button
               onClick={() => { const next = !kevOnly; setKevOnly(next); doSearch(1, { kev: next }); }}
               className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all"
@@ -411,6 +412,11 @@ function VulnerabilitiesContent() {
             >
               <GithubLogo size={13} weight="fill" /> GHSA
             </button>
+            </div>
+            <Link href="/kisa" className="inline-flex items-center gap-1 mt-1.5 text-xs"
+              style={{ color: 'var(--text-muted)', fontFamily: "'Pretendard Variable', Pretendard, sans-serif", textDecoration: 'none' }}>
+              KISA 권고 모아보기 <ArrowRight size={11} />
+            </Link>
           </div>
 
           {/* EPSS Min */}
@@ -583,7 +589,8 @@ function VulnerabilitiesContent() {
                 {results?.vulns.map((v) => {
                   const cvss = v.cvssScores[0];
                   const koRaw = (v.description as any)?.ko;
-                  const koDesc = hasHangul(koRaw) ? String(koRaw).trim() : '';
+                  const kisaDesc = v.kisaNotices?.find((notice) => hasHangul(notice.description))?.description || '';
+                  const koDesc = hasHangul(koRaw) ? String(koRaw).trim() : String(kisaDesc).trim();
                   const enDesc = (v.description as any)?.en || '';
                   const lang = rowLang[v.cveId] ?? (koDesc ? 'ko' : 'en');
                   const desc = ((lang === 'ko' ? koDesc : enDesc) || '').slice(0, 130);

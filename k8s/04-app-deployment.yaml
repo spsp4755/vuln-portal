@@ -15,7 +15,7 @@ spec:
     spec:
       initContainers:
         - name: migrate
-          image: vuln-portal-app:v1.4.16
+          image: vuln-portal-app:v1.4.17
           imagePullPolicy: Never           # 레지스트리 없이 노드 로컬 이미지 사용
           command: ["npx", "prisma", "db", "push", "--skip-generate"]
           env:
@@ -26,7 +26,7 @@ spec:
                   key: DATABASE_URL
       containers:
         - name: app
-          image: vuln-portal-app:v1.4.16
+          image: vuln-portal-app:v1.4.17
           imagePullPolicy: Never           # 레지스트리 없이 노드 로컬 이미지 사용
           command: ["node", "server.js"]
           ports:

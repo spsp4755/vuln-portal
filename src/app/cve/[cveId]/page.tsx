@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { SeverityBadge } from '@/components/ui/SeverityBadge';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { TermTooltip } from '@/components/ui/Tooltip';
+import { hasKoreanText, pickKoreanDescription } from '@/lib/vulnerability-description';
 import {
   ShieldWarning, Cube, Code, Link as LinkIcon, ArrowLeft,
   Sparkle, Robot, ArrowSquareOut, GitBranch, ArrowRight, Bug,
@@ -119,8 +120,6 @@ const SEVERITY_COLOR: Record<string, string> = {
 };
 
 // ko 값에 한글이 있을 때만 '실제 번역'으로 간주 (NVD가 ko에 영어를 복사해 넣는 경우 제외)
-const hasHangul = (s?: string | null) => /[가-힣]/.test(s || '');
-
 const RISK_BG: Record<string, string> = {
   '심각': 'rgba(255,59,59,0.15)', '높음': 'rgba(255,143,0,0.15)', '중간': 'rgba(245,197,24,0.15)', '낮음': 'rgba(0,212,255,0.15)',
 };
@@ -190,6 +189,13 @@ export default function CveDetailPage() {
   if (!vuln) return (
     <div className="p-8 text-center" style={{ color: 'var(--text-muted)' }}>CVE를 찾을 수 없습니다.</div>
   );
+
+  const preferredKo = pickKoreanDescription({
+    ko: vuln.description?.ko,
+    kisaNotices: vuln.kisaNotices,
+  });
+  const hasKoDescription = hasKoreanText(preferredKo.text);
+  const hasOriginalDescription = !!(vuln.description?.en && String(vuln.description.en).trim());
 
   return (
     <div className="space-y-3">
@@ -330,14 +336,11 @@ export default function CveDetailPage() {
             취약점 설명
           </p>
           {(() => {
-            const d = vuln.description as any;
-            const hasKo = hasHangul(d?.ko);
-            const hasEn = !!(d?.en && String(d.en).trim());
-            if (!hasKo || !hasEn) return null;
+            if (!hasKoDescription || !hasOriginalDescription) return null;
             return (
               <div className="ml-auto flex items-center gap-1 p-0.5 rounded-lg text-xs"
                 style={{ background: 'var(--elevated)', border: '1px solid var(--border-dim)' }}>
-                {[['ko', '한국어'], ['en', '원문(EN)']].map(([key, label]) => {
+                {[['ko', preferredKo.source === 'KISA' ? 'KISA 제공' : '한국어'], ['en', '원문(EN)']].map(([key, label]) => {
                   const active = key === 'en' ? showOriginal : !showOriginal;
                   return (
                     <button key={key} onClick={() => setShowOriginal(key === 'en')}
@@ -355,15 +358,19 @@ export default function CveDetailPage() {
         </div>
         <div className="p-5">
           {(() => {
-            const d = vuln.description as any;
-            const hasKo = hasHangul(d?.ko);
-            const body = (showOriginal || !hasKo) ? (d?.en || d?.ko) : d.ko;
+            const body = (showOriginal || !hasKoDescription) ? (vuln.description?.en || preferredKo.text) : preferredKo.text;
             return (
               <>
+                {!showOriginal && preferredKo.source === 'KISA' && (
+                  <div className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-lg text-xs"
+                    style={{ background: 'rgba(255,143,0,0.12)', color: 'var(--orange)', border: '1px solid rgba(255,143,0,0.25)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
+                    <Newspaper size={12} weight="fill" /> KISA 한국어 설명
+                  </div>
+                )}
                 <p className="leading-relaxed whitespace-pre-line" style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
                   {body || 'N/A'}
                 </p>
-                {!hasKo && (d?.en) && (
+                {!hasKoDescription && hasOriginalDescription && (
                   <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
                     ※ AI 분석을 생성하면 한국어 번역이 여기에 표시됩니다.
                   </p>

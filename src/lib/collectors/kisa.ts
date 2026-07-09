@@ -87,7 +87,7 @@ export async function collectKisa() {
             create: {
               cveId,
               state: 'published',
-              description: { ko: item.description || item.title, en: '' },
+              description: { ko: '', en: '' },
               publishedAt: item.pubDate,
               modifiedAt: item.pubDate,
               sourceIdentifier: 'KISA',
