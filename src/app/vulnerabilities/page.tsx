@@ -62,6 +62,7 @@ function VulnerabilitiesContent() {
   const [attackVector, setAttackVector] = useState((searchParams.get('attackVector') || '').toUpperCase());
   const [kevOnly,   setKevOnly]   = useState(searchParams.get('kev') === 'true');
   const [kisaOnly,  setKisaOnly]  = useState(searchParams.get('kisa') === 'true');
+  const [kisaKind,  setKisaKind]  = useState(searchParams.get('kisaKind') || '');
   const [githubOnly, setGithubOnly] = useState(searchParams.get('github') === 'true');
   const [dateFrom,  setDateFrom]  = useState(searchParams.get('dateFrom') || '');
   const [dateTo,    setDateTo]    = useState(searchParams.get('dateTo') || '');
@@ -183,7 +184,7 @@ function VulnerabilitiesContent() {
   }, [rowLang, patchVulns]);
 
   const doSearch = useCallback((pg = 1, opts?: {
-    kw?: string; sv?: string; vd?: string; cw?: string; av?: string; kev?: boolean; kisa?: boolean; github?: boolean; from?: string; to?: string; lim?: number;
+    kw?: string; sv?: string; vd?: string; cw?: string; av?: string; kev?: boolean; kisa?: boolean; kisaKind?: string; github?: boolean; from?: string; to?: string; lim?: number;
     sort?: SortCol; order?: 'asc' | 'desc'; epss?: string;
   }) => {
     const kw    = opts?.kw    !== undefined ? opts.kw    : keyword;
@@ -193,6 +194,7 @@ function VulnerabilitiesContent() {
     const av    = opts?.av    !== undefined ? opts.av    : attackVector;
     const kev   = opts?.kev   !== undefined ? opts.kev   : kevOnly;
     const kisa  = opts?.kisa  !== undefined ? opts.kisa  : kisaOnly;
+    const kk    = opts?.kisaKind !== undefined ? opts.kisaKind : kisaKind;
     const github = opts?.github !== undefined ? opts.github : githubOnly;
     const from  = opts?.from  !== undefined ? opts.from  : dateFrom;
     const to    = opts?.to    !== undefined ? opts.to    : dateTo;
@@ -210,6 +212,7 @@ function VulnerabilitiesContent() {
     if (av)   p.set('attackVector', av);
     if (kev)  p.set('kev',      'true');
     if (kisa) p.set('kisa',     'true');
+    if (kk)   p.set('kisaKind', kk);
     if (github) p.set('github', 'true');
     if (from) p.set('dateFrom', from);
     if (to)   p.set('dateTo',   to);
@@ -233,7 +236,7 @@ function VulnerabilitiesContent() {
         setLoading(false);
       })
       .catch((e) => { setApiError(e.message); setLoading(false); });
-  }, [keyword, severity, vendor, cwe, attackVector, kevOnly, kisaOnly, githubOnly, dateFrom, dateTo, limit, sortBy, sortOrder, epssMin]);
+  }, [keyword, severity, vendor, cwe, attackVector, kevOnly, kisaOnly, kisaKind, githubOnly, dateFrom, dateTo, limit, sortBy, sortOrder, epssMin]);
 
   // 초기 로드
   useEffect(() => { doSearch(1); }, []);
@@ -246,9 +249,9 @@ function VulnerabilitiesContent() {
   };
 
   const handleReset = () => {
-    setSeverity(''); setVendor(''); setCwe(''); setAttackVector(''); setKevOnly(false); setKisaOnly(false); setGithubOnly(false); setKeyword(''); setDateFrom(''); setDateTo('');
+    setSeverity(''); setVendor(''); setCwe(''); setAttackVector(''); setKevOnly(false); setKisaOnly(false); setKisaKind(''); setGithubOnly(false); setKeyword(''); setDateFrom(''); setDateTo('');
     setEpssMin(''); setSortBy('publishedAt'); setSortOrder('desc');
-    doSearch(1, { kw: '', sv: '', vd: '', cw: '', av: '', kev: false, kisa: false, github: false, from: '', to: '', epss: '', sort: 'publishedAt', order: 'desc' });
+    doSearch(1, { kw: '', sv: '', vd: '', cw: '', av: '', kev: false, kisa: false, kisaKind: '', github: false, from: '', to: '', epss: '', sort: 'publishedAt', order: 'desc' });
   };
 
   const toggleSort = (col: SortCol) => {
@@ -263,7 +266,7 @@ function VulnerabilitiesContent() {
     }
   };
 
-  const hasFilters = keyword || severity || vendor || cwe || attackVector || kevOnly || kisaOnly || githubOnly || dateFrom || dateTo || epssMin;
+  const hasFilters = keyword || severity || vendor || cwe || attackVector || kevOnly || kisaOnly || kisaKind || githubOnly || dateFrom || dateTo || epssMin;
 
   const thStyle = (col: SortCol): React.CSSProperties => ({
     cursor: 'pointer',
@@ -368,7 +371,7 @@ function VulnerabilitiesContent() {
               <ShieldWarning size={13} /> KEV
             </button>
             <button
-              onClick={() => { const next = !kisaOnly; setKisaOnly(next); doSearch(1, { kisa: next }); }}
+              onClick={() => { const next = !kisaOnly; setKisaOnly(next); if (next) setKisaKind(''); doSearch(1, { kisa: next, kisaKind: next ? '' : kisaKind }); }}
               className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all"
               style={{
                 fontFamily: 'JetBrains Mono, monospace', fontWeight: 600,
@@ -378,6 +381,23 @@ function VulnerabilitiesContent() {
               }}
             >
               <Newspaper size={13} /> KISA
+            </button>
+            <button
+              onClick={() => {
+                const next = kisaKind === 'update_advisory' ? '' : 'update_advisory';
+                setKisaKind(next);
+                if (next) setKisaOnly(false);
+                doSearch(1, { kisaKind: next, kisa: false });
+              }}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all"
+              style={{
+                fontFamily: "'Pretendard Variable', Pretendard, sans-serif", fontWeight: 700,
+                background: kisaKind === 'update_advisory' ? 'rgba(255,143,0,0.12)' : 'var(--elevated)',
+                color: kisaKind === 'update_advisory' ? 'var(--orange)' : 'var(--text-muted)',
+                border: `1px solid ${kisaKind === 'update_advisory' ? 'rgba(255,143,0,0.32)' : 'var(--border-dim)'}`,
+              }}
+            >
+              <Sparkle size={13} weight="fill" /> 업데이트 권고
             </button>
             <button
               onClick={() => { const next = !githubOnly; setGithubOnly(next); doSearch(1, { github: next }); }}
@@ -629,8 +649,14 @@ function VulnerabilitiesContent() {
                             <a href={v.kisaNotices[0].link} target="_blank" rel="noreferrer"
                               title={v.kisaNotices[0].title}
                               className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded"
-                              style={{ background: 'var(--cyan-dim)', color: 'var(--cyan)', border: '1px solid rgba(0,212,255,0.2)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 600 }}>
-                              <Newspaper size={10} weight="fill" /> KISA
+                              style={{
+                                background: v.kisaNotices[0].title.includes('업데이트 권고') ? 'rgba(255,143,0,0.12)' : 'var(--cyan-dim)',
+                                color: v.kisaNotices[0].title.includes('업데이트 권고') ? 'var(--orange)' : 'var(--cyan)',
+                                border: `1px solid ${v.kisaNotices[0].title.includes('업데이트 권고') ? 'rgba(255,143,0,0.25)' : 'rgba(0,212,255,0.2)'}`,
+                                fontFamily: 'JetBrains Mono, monospace',
+                                fontWeight: 600,
+                              }}>
+                              <Newspaper size={10} weight="fill" /> {v.kisaNotices[0].title.includes('업데이트 권고') ? 'KISA 권고' : 'KISA'}
                             </a>
                           )}
                           {v.githubAdvisories?.length > 0 && (

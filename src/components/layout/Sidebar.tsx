@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   SquaresFour, MagnifyingGlass, ShieldWarning, CalendarX,
   Clipboard, Gear, Shield, RadioButton, Database, ChartBar, Bell,
-  SignOut, Sun, Moon, Users,
+  SignOut, Sun, Moon, Users, Newspaper,
 } from '@phosphor-icons/react';
 import { useTheme } from '@/components/ThemeProvider';
 
@@ -22,6 +22,7 @@ const navGroups = [
     label: '취약점',
     items: [
       { href: '/vulnerabilities', label: '취약점 목록', icon: Shield          },
+      { href: '/kisa',            label: 'KISA 권고',   icon: Newspaper       },
       { href: '/search',          label: '고급 검색',   icon: MagnifyingGlass },
       { href: '/kev',             label: 'KEV 목록',    icon: ShieldWarning   },
       { href: '/eol',             label: 'EOL 임박',    icon: CalendarX       },

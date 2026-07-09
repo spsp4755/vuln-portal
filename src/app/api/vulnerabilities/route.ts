@@ -2,6 +2,29 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+function kisaKindWhere(kind: string) {
+  if (kind === 'update_advisory') {
+    return {
+      some: {
+        title: { contains: '업데이트 권고' },
+      },
+    };
+  }
+  if (kind === 'cisa_exploit') {
+    return {
+      some: {
+        OR: [
+          { title: { contains: 'CISA 발표' } },
+          { title: { contains: 'Exploit' } },
+          { description: { contains: 'Exploit' } },
+        ],
+      },
+    };
+  }
+  if (kind === 'knvd_vulnerability') return { some: { source: 'kisa-info' } };
+  return { some: {} };
+}
+
 // GET /api/vulnerabilities
 export async function GET(req: Request) {
   try {
@@ -16,6 +39,7 @@ export async function GET(req: Request) {
     const attackVector = searchParams.get('attackVector')?.toUpperCase() || '';
     const kevOnly  = searchParams.get('kev') === 'true';
     const kisaOnly = searchParams.get('kisa') === 'true';
+    const kisaKind = searchParams.get('kisaKind') || '';
     const githubOnly = searchParams.get('github') === 'true';
     const dateFrom = searchParams.get('dateFrom') || '';
     const dateTo   = searchParams.get('dateTo')   || '';
@@ -45,7 +69,8 @@ export async function GET(req: Request) {
     if (product) where.cpeMappings = { some: { product: { equals: product, mode: 'insensitive' } } };
     if (cwe)     where.cweWeaknesses = { some: { cweId: { equals: cwe } } };
     if (kevOnly) where.isKev = true;
-    if (kisaOnly) where.kisaNotices = { some: {} };
+    if (kisaKind) where.kisaNotices = kisaKindWhere(kisaKind);
+    else if (kisaOnly) where.kisaNotices = { some: {} };
     if (githubOnly) where.githubAdvisories = { some: {} };
     if (epssMin > 0) where.epssScore = { score: { gte: epssMin } };
 

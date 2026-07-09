@@ -9,7 +9,7 @@ import { TermTooltip } from '@/components/ui/Tooltip';
 import {
   ShieldWarning, Cube, Code, Link as LinkIcon, ArrowLeft,
   Sparkle, Robot, ArrowSquareOut, GitBranch, ArrowRight, Bug,
-  GithubLogo,
+  GithubLogo, Newspaper,
 } from '@phosphor-icons/react';
 import { format, differenceInDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -43,6 +43,16 @@ interface GithubAdvisory {
   vulnerableRange: string | null;
   patchedVersion: string | null;
   updatedAt: string | null;
+}
+
+interface KisaNotice {
+  id: string;
+  title: string;
+  link: string;
+  description: string | null;
+  pubDate: string | null;
+  source: string;
+  cveIds: string[];
 }
 
 interface VulnDetail {
@@ -81,6 +91,7 @@ interface VulnDetail {
     recommendation?: string;
   } | null;
   exploitEntries: ExploitEntry[];
+  kisaNotices: KisaNotice[];
   githubAdvisories: GithubAdvisory[];
 }
 
@@ -116,6 +127,19 @@ const RISK_BG: Record<string, string> = {
 const RISK_FG: Record<string, string> = {
   '심각': '#ff3b3b', '높음': '#ff8f00', '중간': '#f5c518', '낮음': '#00d4ff',
 };
+
+function kisaBadge(title: string, source: string) {
+  if (title.includes('업데이트 권고')) {
+    return { label: '업데이트 권고', color: 'var(--orange)', bg: 'rgba(255,143,0,0.12)' };
+  }
+  if (title.includes('CISA 발표') || title.includes('Exploit')) {
+    return { label: 'Exploit 공유', color: 'var(--red)', bg: 'rgba(255,59,59,0.12)' };
+  }
+  if (source === 'kisa-info' || /^CVE-\d{4}-\d{4,}/i.test(title)) {
+    return { label: 'KNVD 취약점', color: 'var(--cyan)', bg: 'var(--cyan-dim)' };
+  }
+  return { label: '보안 공지', color: 'var(--text-secondary)', bg: 'var(--elevated)' };
+}
 
 export default function CveDetailPage() {
   const { cveId } = useParams();
@@ -219,6 +243,12 @@ export default function CveDetailPage() {
               <span className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg"
                 style={{ background: 'rgba(168,85,247,0.15)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.3)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
                 <GithubLogo size={13} weight="fill" /> GHSA
+              </span>
+            )}
+            {vuln.kisaNotices?.length > 0 && (
+              <span className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg"
+                style={{ background: 'var(--cyan-dim)', color: 'var(--cyan)', border: '1px solid rgba(0,212,255,0.3)', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
+                <Newspaper size={13} weight="fill" /> KISA {vuln.kisaNotices.length}
               </span>
             )}
             {vuln.cvssScores[0] && (
@@ -517,6 +547,45 @@ export default function CveDetailPage() {
           </Section>
         )}
       </div>
+
+      {vuln.kisaNotices?.length > 0 && (
+        <Section title="KISA 보안공지" icon={<Newspaper size={15} weight="fill" />} accent="var(--cyan)">
+          <div className="space-y-2">
+            {vuln.kisaNotices.map((notice) => {
+              const badge = kisaBadge(notice.title, notice.source);
+              return (
+                <a key={notice.id} href={notice.link} target="_blank" rel="noopener noreferrer"
+                  className="block p-3 rounded-xl transition-all"
+                  style={{ background: 'var(--elevated)', border: '1px solid var(--border-dim)', textDecoration: 'none' }}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs px-2 py-0.5 rounded"
+                      style={{ background: badge.bg, color: badge.color, fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
+                      {badge.label}
+                    </span>
+                    {notice.pubDate && (
+                      <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
+                        {format(new Date(notice.pubDate), 'yyyy-MM-dd', { locale: ko })}
+                      </span>
+                    )}
+                    <span className="text-xs" style={{ color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
+                      {notice.source}
+                    </span>
+                  </div>
+                  <p className="text-sm mt-2" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{notice.title}</p>
+                  {notice.description && (
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                      {notice.description.length > 240 ? `${notice.description.slice(0, 240)}...` : notice.description}
+                    </p>
+                  )}
+                  <p className="inline-flex items-center gap-1 text-xs mt-2" style={{ color: 'var(--cyan)' }}>
+                    KISA 원문 열기 <ArrowSquareOut size={11} />
+                  </p>
+                </a>
+              );
+            })}
+          </div>
+        </Section>
+      )}
 
       {vuln.githubAdvisories?.length > 0 && (
         <Section title="GitHub Security Advisory" icon={<GithubLogo size={15} weight="fill" />} accent="#a855f7">

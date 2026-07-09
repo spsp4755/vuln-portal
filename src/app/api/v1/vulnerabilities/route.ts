@@ -26,6 +26,29 @@ import { validateApiKey } from '@/lib/api-keys';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+function kisaKindWhere(kind: string) {
+  if (kind === 'update_advisory') {
+    return {
+      some: {
+        title: { contains: '업데이트 권고' },
+      },
+    };
+  }
+  if (kind === 'cisa_exploit') {
+    return {
+      some: {
+        OR: [
+          { title: { contains: 'CISA 발표' } },
+          { title: { contains: 'Exploit' } },
+          { description: { contains: 'Exploit' } },
+        ],
+      },
+    };
+  }
+  if (kind === 'knvd_vulnerability') return { some: { source: 'kisa-info' } };
+  return { some: {} };
+}
+
 function parseDate(s: string): Date | null {
   if (!s || !DATE_RE.test(s)) return null;
   const d = new Date(s);
@@ -48,6 +71,7 @@ export async function GET(req: NextRequest) {
     const product   = searchParams.get('product')  || '';
     const kevOnly   = searchParams.get('kev') === 'true';
     const kisaOnly  = searchParams.get('kisa') === 'true';
+    const kisaKind  = searchParams.get('kisaKind') || '';
     const githubOnly = searchParams.get('github') === 'true';
     const sortBy    = searchParams.get('sort')     || 'publishedAt';
     const sortOrder = (searchParams.get('order') === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc';
@@ -85,7 +109,8 @@ export async function GET(req: NextRequest) {
     if (andConditions.length > 0) where.AND = andConditions;
 
     if (kevOnly) where.isKev = true;
-    if (kisaOnly) where.kisaNotices = { some: {} };
+    if (kisaKind) where.kisaNotices = kisaKindWhere(kisaKind);
+    else if (kisaOnly) where.kisaNotices = { some: {} };
     if (githubOnly) where.githubAdvisories = { some: {} };
     if (epssMin > 0) where.epssScore = { score: { gte: epssMin } };
     if (dateFrom || dateTo) {
