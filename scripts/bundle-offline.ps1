@@ -29,7 +29,7 @@ New-Item -ItemType Directory -Force -Path "$OutputDir\app" | Out-Null
 # -----------------------------------------------------------------------
 if (-not $SkipNodeInstaller) {
     Write-Host "`n[1/4] Node.js LTS 설치 파일 다운로드..." -ForegroundColor Yellow
-    $nodeVersion = "24.16.0"
+    $nodeVersion = "24.22.1"
     $nodeUrl = "https://nodejs.org/dist/v$nodeVersion/node-v$nodeVersion-x64.msi"
     $nodeOut  = "$OutputDir\installers\node-v$nodeVersion-x64.msi"
     if (-not (Test-Path $nodeOut)) {

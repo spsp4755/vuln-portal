@@ -5,7 +5,7 @@
 # =============================================
 set -e
 
-APP_TAG="vuln-portal-app:v1.4.17"
+APP_TAG="vuln-portal-app:v1.4.18"
 PG_TAG="postgres:16-alpine"
 OUTPUT_DIR="./images"
 
